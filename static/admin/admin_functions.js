@@ -32,7 +32,11 @@ function sendClick(evt) {
 		url: '/update',
 		data: {field:currentEditor.target.get('id'), value:currentEditor.input.get('value')},
 		onSuccess: function(data) {
+			alert('success');
 			currentEditor.target.set('html', data.new_value);
+		},
+		onError: function(err) {
+			alert(err);
 		}
 	}).send();
 	closeEdit(evt.target.match);

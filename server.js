@@ -27,7 +27,13 @@ client.hgetall('/', function(err, res) {
 
 var server = express.createServer()
 server.use(express.bodyDecoder());
+server.error(function(err, req, res) {
+	log.warn('Server error: '+err);
+	res.send('what the heck');
+});
+
 server.post('/update', updateField);
+
 server.get(/.*/, function(req, res) {
 	var path = req.url.split('/');
 	if(path[1] == 'static') {
@@ -38,8 +44,6 @@ server.get(/.*/, function(req, res) {
 			res.writeHead(404, {'Content-Type': 'text/html'});
 			res.end('Todo: this should be some standardized 404 page' + e);
 		}
-	} else if(path[1] == 'update' && isAdmin) {
-		updateField(req, res);
 	} else {
 		client.hgetall(req.url, function(err, content) {
 			if(content) {
@@ -123,8 +127,12 @@ function guessContentType(file) {
 
 function updateField(req, res) {
 	var parts = req.body.field.split(':');
-	client.hmset(parts[0], parts[1], req.body.value);
-
-	res.writeHead(200);
-	res.send({status:'success', new_value:req.body.value});
+	client.hmset(parts[0], parts[1], req.body.value, function(err, dbres) {
+		if(err) {
+			res.writeHead(200, {'Content-Type': 'text/json'});
+			res.send({status:'failure', message:err});
+		} else {
+			res.send({status:'success', new_value:req.body.value});
+		}
+	});
 }
