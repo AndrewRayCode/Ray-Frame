@@ -79,15 +79,24 @@ function parseTemplate(obj) {
 		fs.writeFileSync('compiled/'+obj.template, f);
 		return f;
 	} catch(e) {
-		log.error('Template not found for `'+obj+'`: '+e);
+		log.error('Template not found for `'+obj.template+'`: '+e);
 	}
 }
 
 function getData(str, obj) {
-	var field = str.substring(2, str.length-2),
-		val = obj[field] || '';
-	if(isAdmin) {
-		return '<span id="'+obj.id+':'+val+'">'+val+'</span>';
+	var instructions = getInstructions(str);
+		val = obj[instructions.field] || '';
+	if(isAdmin && !instructions.noEdit) {
+		return '<span id="'+obj.id+':'+instructions.field+'">'+val+'</span>';
 	}
 	return val;
+}
+
+function getInstructions(plip) {
+	var fields = plip.substring(2, plip.length-2).split(':');
+	return {
+		field: fields[0],
+		noEdit: fields.indexOf('noEdit') > -1 ? true : false
+	};
+
 }
