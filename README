@@ -1,1 +1,2 @@
-Nothing to read yet
+Dependencies:
+node_redis: https://github.com/mranney/node_redis (81ac292fce718d0e89b2)
