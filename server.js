@@ -5,6 +5,10 @@ var http = require('http'),
 		console.log('poop went kablamo: '+err);
 	});
 
+client.get('/', function(err, res) {
+	console.log(err, res);
+});
+
 http.createServer(function (req, res) {
 	var path = req.url.split('/');
 
