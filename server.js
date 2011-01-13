@@ -6,11 +6,12 @@ var http = require('http'),
 	client = redis.createClient().on('error', function(err) {
 		log.error('poop went kablamo: '+err);
 	}),
-	isAdmin = 1;
+	isAdmin = 1,
+	adminFiles = '<script src="admin/mootools.js"></script><script src="admin/admin_functions.js"></script>';
 
 log.log_level = 'info';
 client.hgetall('/', function(err, res) {
-	if(res !== null) {
+	if(res === null) {
 		client.HMSET('/', {template:'index.html', title:'hello', welcome_msg:'Welcome to this website!'}, function() {
 			console.log('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
 			runServer();
@@ -24,20 +25,31 @@ client.hgetall('/', function(err, res) {
 
 function runServer() {
 	http.createServer(function (req, res) {
-		//var path = req.url.split('/');
-		client.hgetall(req.url, function(err, content) {
-			if(content) {
-				res.writeHead(200, {'Content-Type': 'text/html'});
-				res.end(serveTemplate(content));
-			} else if (err) {
-				log.error('uh oh: '+err);
-				res.writeHead(500, {'Content-Type': 'text/html'});
-				res.end('Internal server errrrrrror');
-			} else {
+		var path = req.url.split('/');
+		if(path[0] == 'static') {
+			try {
+				res.writeHead(200);
+				res.end(fs.readFileSync(req.url));
+			} catch(e) {
 				res.writeHead(404, {'Content-Type': 'text/html'});
-				res.end('UR KRAP IS MISSN');
+				res.end('Todo: this should be some standardized 404 page');
 			}
-		});
+		} else {
+			client.hgetall(req.url, function(err, content) {
+				if(content) {
+					content.id = req.url; // TODO: We need this for the admin markup, but this seems dumb
+					res.writeHead(200, {'Content-Type': 'text/html'});
+					res.end(serveTemplate(content));
+				} else if (err) {
+					log.error('uh oh: '+err);
+					res.writeHead(500, {'Content-Type': 'text/html'});
+					res.end('Internal server errrrrrror');
+				} else {
+					res.writeHead(404, {'Content-Type': 'text/html'});
+					res.end('UR KRAP IS MISSN');
+				}
+			});
+		}
 	}).listen(8080, "127.0.0.1");
 	console.log('Server running!');
 };
@@ -62,6 +74,7 @@ function parseTemplate(obj) {
 		while(s--) {
 			f = f.replace(matches[s], getData(matches[s], obj));
 		}
+		f = f.replace('</body>', adminFiles+'</body>');
 
 		fs.writeFileSync('compiled/'+obj.template, f);
 		return f;
@@ -71,6 +84,10 @@ function parseTemplate(obj) {
 }
 
 function getData(str, obj) {
-	var val = obj[str.substring(2, str.length-2)] || '';
+	var field = str.substring(2, str.length-2),
+		val = obj[field] || '';
+	if(isAdmin) {
+		return '<span id="'+obj.id+':'+val+'">'+val+'</span>';
+	}
 	return val;
 }
