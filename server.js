@@ -7,7 +7,7 @@ var http = require('http'),
 		log.error('poop went kablamo: '+err);
 	}),
 	isAdmin = 1,
-	adminFiles = '<script src="admin/mootools.js"></script><script src="admin/admin_functions.js"></script>';
+	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script>';
 
 log.log_level = 'info';
 client.hgetall('/', function(err, res) {
@@ -26,13 +26,13 @@ client.hgetall('/', function(err, res) {
 function runServer() {
 	http.createServer(function (req, res) {
 		var path = req.url.split('/');
-		if(path[0] == 'static') {
+		if(path[1] == 'static') {
 			try {
 				res.writeHead(200);
-				res.end(fs.readFileSync(req.url));
+				res.end(fs.readFileSync(req.url.substring(1)));
 			} catch(e) {
 				res.writeHead(404, {'Content-Type': 'text/html'});
-				res.end('Todo: this should be some standardized 404 page');
+				res.end('Todo: this should be some standardized 404 page' + e);
 			}
 		} else {
 			client.hgetall(req.url, function(err, content) {
