@@ -87,7 +87,7 @@ function getData(str, obj) {
 	var instructions = getInstructions(str);
 		val = obj[instructions.field] || '';
 	if(isAdmin && !instructions.noEdit) {
-		return '<span id="'+obj.id+':'+instructions.field+'">'+val+'</span>';
+		return '<span class="edit_me" id="'+obj.id+':'+instructions.field+'">'+val+'</span>';
 	}
 	return val;
 }
