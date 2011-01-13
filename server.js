@@ -3,11 +3,12 @@ var http = require('http'),
 	redis = require('redis'); 
 	log = require('./lib/logger'),
 	fs = require('fs'),
+	path = require('path'),
 	client = redis.createClient().on('error', function(err) {
 		log.error('poop went kablamo: '+err);
 	}),
 	isAdmin = 1,
-	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script>';
+	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
 log.log_level = 'info';
 client.hgetall('/', function(err, res) {
@@ -28,7 +29,7 @@ function runServer() {
 		var path = req.url.split('/');
 		if(path[1] == 'static') {
 			try {
-				res.writeHead(200);
+				res.writeHead(200, {'Content-Type': guessContentType(req.url)});
 				res.end(fs.readFileSync(req.url.substring(1)));
 			} catch(e) {
 				res.writeHead(404, {'Content-Type': 'text/html'});
@@ -99,4 +100,13 @@ function getInstructions(plip) {
 		noEdit: fields.indexOf('noEdit') > -1 ? true : false
 	};
 
+}
+
+function guessContentType(file) {
+	var ext = path.extname(file);
+	if(ext == '.css') {
+		return 'text/css';
+	} else if(ext == '.js') {
+		return 'text/javascript';
+	}
 }

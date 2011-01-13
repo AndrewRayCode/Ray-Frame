@@ -1,0 +1,2 @@
+.edit_btn {position:absolute; width:10px; height:10px; background:green; opacity:0.2;}
+.edit_btn:hover {opacity:1.0 background:red;}
