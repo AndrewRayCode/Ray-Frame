@@ -1,2 +1,3 @@
 Dependencies:
 node_redis: https://github.com/mranney/node_redis (81ac292fce718d0e89b2)
+express: https://github.com/visionmedia/express (5e0a80f227063fb7441a)

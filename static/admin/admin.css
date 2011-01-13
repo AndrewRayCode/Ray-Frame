@@ -1,2 +1,4 @@
-.edit_btn {position:absolute; width:10px; height:10px; background:green; opacity:0.2;}
-.edit_btn:hover {opacity:1.0 background:red;}
+.edit_btn, .cancel_btn, .send_btn {position:absolute; width:10px; height:10px; background:green; cursor:pointer; z-index:9999; opacity:0.5em;}
+.edit_btn:hover {background-color:red !important;}
+.cancel_btn {background:red;}
+.send_btn {background:blue;}

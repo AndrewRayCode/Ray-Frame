@@ -4,10 +4,11 @@ var http = require('http'),
 	log = require('./lib/logger'),
 	fs = require('fs'),
 	path = require('path'),
+	express = require('express'),
 	client = redis.createClient().on('error', function(err) {
 		log.error('poop went kablamo: '+err);
 	}),
-	isAdmin = 1,
+	isAdmin = 1, // TODO: Authentication with login form, maybe user level permissions
 	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
 log.log_level = 'info';
@@ -24,36 +25,44 @@ client.hgetall('/', function(err, res) {
 	}
 });
 
-function runServer() {
-	http.createServer(function (req, res) {
-		var path = req.url.split('/');
-		if(path[1] == 'static') {
-			try {
-				res.writeHead(200, {'Content-Type': guessContentType(req.url)});
-				res.end(fs.readFileSync(req.url.substring(1)));
-			} catch(e) {
-				res.writeHead(404, {'Content-Type': 'text/html'});
-				res.end('Todo: this should be some standardized 404 page' + e);
-			}
-		} else {
-			client.hgetall(req.url, function(err, content) {
-				if(content) {
-					content.id = req.url; // TODO: We need this for the admin markup, but this seems dumb
-					res.writeHead(200, {'Content-Type': 'text/html'});
-					res.end(serveTemplate(content));
-				} else if (err) {
-					log.error('uh oh: '+err);
-					res.writeHead(500, {'Content-Type': 'text/html'});
-					res.end('Internal server errrrrrror');
-				} else {
-					res.writeHead(404, {'Content-Type': 'text/html'});
-					res.end('UR KRAP IS MISSN');
-				}
-			});
+var server = express.createServer()
+server.use(express.bodyDecoder());
+server.post('/update', updateField);
+server.get(/.*/, function(req, res) {
+	var path = req.url.split('/');
+	if(path[1] == 'static') {
+		try {
+			res.writeHead(200, {'Content-Type': guessContentType(req.url)});
+			res.end(fs.readFileSync(req.url.substring(1)));
+		} catch(e) {
+			res.writeHead(404, {'Content-Type': 'text/html'});
+			res.end('Todo: this should be some standardized 404 page' + e);
 		}
-	}).listen(8080, "127.0.0.1");
+	} else if(path[1] == 'update' && isAdmin) {
+		updateField(req, res);
+	} else {
+		client.hgetall(req.url, function(err, content) {
+			if(content) {
+				content.id = req.url; // TODO: We need this for the admin markup, but this seems dumb
+				res.writeHead(200, {'Content-Type': 'text/html'});
+				res.end(serveTemplate(content));
+			} else if (err) {
+				log.error('uh oh: '+err);
+				res.writeHead(500, {'Content-Type': 'text/html'});
+				res.end('Internal server errrrrrror');
+			} else {
+				res.writeHead(404, {'Content-Type': 'text/html'});
+				res.end('UR KRAP IS MISSN');
+			}
+		});
+	}
+});
+
+function runServer() {
+	server.listen(8080);
 	console.log('Server running!');
-};
+
+}
 
 function serveTemplate(obj) {
 	return parseTemplate(obj);
@@ -88,18 +97,19 @@ function getData(str, obj) {
 	var instructions = getInstructions(str);
 		val = obj[instructions.field] || '';
 	if(isAdmin && !instructions.noEdit) {
-		return '<span class="edit_me" id="'+obj.id+':'+instructions.field+'">'+val+'</span>';
+		return '<span class="edit_me" id="'+obj.id+':'+instructions.raw+'">'+val+'</span>';
 	}
 	return val;
 }
 
 function getInstructions(plip) {
-	var fields = plip.substring(2, plip.length-2).split(':');
+	var raw = plip.substring(2, plip.length-2),
+		fields = raw.split(':');
 	return {
 		field: fields[0],
+		raw: raw,
 		noEdit: fields.indexOf('noEdit') > -1 ? true : false
 	};
-
 }
 
 function guessContentType(file) {
@@ -109,4 +119,12 @@ function guessContentType(file) {
 	} else if(ext == '.js') {
 		return 'text/javascript';
 	}
+}
+
+function updateField(req, res) {
+	var parts = req.body.field.split(':');
+	client.hmset(parts[0], parts[1], req.body.value);
+
+	res.writeHead(200);
+	res.send({status:'success', new_value:req.body.value});
 }
