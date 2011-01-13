@@ -16,8 +16,8 @@ function editClick(evt) {
 	currentEditor.target = evt.target.match.setStyles({display:'none'});
 	var pos = evt.target.match.getPosition();
 
-	currentEditor.cancel = cancel.setStyles({top:pos.y, left:pos.x}).inject(document.body);
-	currentEditor.send = send.setStyles({top:pos.y, left:pos.x + 15}).inject(document.body);
+	currentEditor.cancel = cancel.setStyles({display:'block', top:pos.y, left:pos.x}).inject(document.body);
+	currentEditor.send = send.setStyles({display:'block', top:pos.y, left:pos.x + 15}).inject(document.body);
 
 	evt.target.match.setStyles({display:'none'});
 	buildEditor(evt.target.match.get('id'));
@@ -32,14 +32,14 @@ function sendClick(evt) {
 		url: '/update',
 		data: {field:currentEditor.target.get('id'), value:currentEditor.input.get('value')},
 		onSuccess: function(data) {
-			alert('success');
-			currentEditor.target.set('html', data.new_value);
-		},
-		onError: function(err) {
-			alert(err);
+			if(data.status == 'success') {
+				currentEditor.target.set('html', data.new_value);
+				closeEdit(evt.target.match);
+			} else {
+				alert(data.status+': '+data.message);
+			}
 		}
 	}).send();
-	closeEdit(evt.target.match);
 }
 
 function cancelClick() {

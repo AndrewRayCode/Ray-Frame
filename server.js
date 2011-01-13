@@ -47,9 +47,16 @@ server.get(/.*/, function(req, res) {
 	} else {
 		client.hgetall(req.url, function(err, content) {
 			if(content) {
-				content.id = req.url; // TODO: We need this for the admin markup, but this seems dumb
-				res.writeHead(200, {'Content-Type': 'text/html'});
-				res.end(serveTemplate(content));
+				serveTemplate(req.url, content, function(err, parsed) {
+					if(!err) {
+						res.writeHead(200, {'Content-Type': 'text/html'});
+						res.end(parsed);
+					} else {
+						log.error('uh oh: '+err);
+						res.writeHead(500, {'Content-Type': 'text/html'});
+						res.end('Internal server errrrrrror');
+					}
+				});
 			} else if (err) {
 				log.error('uh oh: '+err);
 				res.writeHead(500, {'Content-Type': 'text/html'});
@@ -68,42 +75,78 @@ function runServer() {
 
 }
 
-function serveTemplate(obj) {
-	return parseTemplate(obj);
-	try {
-		var f = fs.readFileSync('compiled/'+obj.template);
-		return f;
-	} catch(e) {
-		return parseTemplate(obj);
-	}
+function serveTemplate(url, obj, cb) {
+	parseTemplate(url, obj, cb);
+	//try {
+		//var f = fs.readFileSync('compiled/'+obj.template);
+		//return f;
+	//} catch(e) {
+		//return parseTemplate(obj);
+	//}
 }
 
 var modelReplaces = /{{\S+?}}/g;
 
-function parseTemplate(obj) {
+function parseTemplate(url, obj, cb) {
 	try {
 		var f = fs.readFileSync('templates/'+obj.template).toString();
-
-		var matches = f.match(modelReplaces), s = matches.length;
-		while(s--) {
-			f = f.replace(matches[s], getData(matches[s], obj));
-		}
-		f = f.replace('</body>', adminFiles+'</body>');
-
-		fs.writeFileSync('compiled/'+obj.template, f);
-		return f;
 	} catch(e) {
-		log.error('Template not found for `'+obj.template+'`: '+e);
+		cb('Template not found for `'+obj.template+'`: '+e);
+		return;
+	}
+
+	var matches = f.match(modelReplaces),
+		s = matches.length,
+		total = 0;
+		getReturn = function(value, x) {
+			f = f.replace(matches[x], value);
+			if(total++ == matches.length) {
+				go();
+			}
+		},
+		go = function() {
+			f = f.replace('</body>', adminFiles+'</body>');
+
+			fs.writeFileSync('compiled/'+obj.template, f);
+			cb(null, f);
+		}
+	while(s--) {
+		getData(url, matches[s], obj, function(err, val) {
+			if(err) { 
+				cb(err);
+			} else {
+				return function(x) {
+					getReturn(val, x);
+				}(s);
+			}
+		});
 	}
 }
 
-function getData(str, obj) {
+function getData(url, str, obj, cb) {
 	var instructions = getInstructions(str);
 		val = obj[instructions.field] || '';
-	if(isAdmin && !instructions.noEdit) {
-		return '<span class="edit_me" id="'+obj.id+':'+instructions.raw+'">'+val+'</span>';
+	// If this is an included file we need to start the parse chain all over again
+	if(instructions.include) {
+		var lookup = url+'/'+instructions.field
+		client.hgetall(lookup, function(err, firstres) {
+			if(!err) {
+				// This thing is not yet in the database. Let's put it there!
+				var new_obj = {template: instructions.field};
+				// TODO: Here we create the db entry even if the template file does not exist.
+				// We should check for it and error up there if it doesn't exist
+				client.hmset(lookup, new_obj, function(err, added) {
+					serveTemplate(lookup, new_obj, cb);
+				});
+			} else {
+				// This thing is in the database, return it parsed
+				serveTemplate(url, firstres, cb);
+			}
+		});
+	} else if(isAdmin && !instructions.noEdit) {
+		cb(null, '<span class="edit_me" id="'+url+':'+instructions.raw+'">'+val+'</span>');
 	}
-	return val;
+	cb(null, val);
 }
 
 function getInstructions(plip) {
@@ -112,7 +155,9 @@ function getInstructions(plip) {
 	return {
 		field: fields[0],
 		raw: raw,
-		noEdit: fields.indexOf('noEdit') > -1 ? true : false
+		noEdit: fields.indexOf('noEdit') > -1 ? true : false,
+		//TODO: better way to identify {{template.html}} import
+		include: fields[0].indexOf('.html') > 0 ? true : false
 	};
 }
 
