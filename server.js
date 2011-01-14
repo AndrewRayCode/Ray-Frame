@@ -95,35 +95,20 @@ function parseTemplate(url, obj, cb) {
 		return;
 	}
 
-	var matches = f.match(modelReplaces);
-	if(matches) {
-		var s = matches.length,
-			total = 0;
-			getReturn = function(value, x) {
-				f = f.replace(matches[x], value);
-				if(++total == matches.length) {
-					go();
-				}
-			},
-			go = function() {
-				f = f.replace('</body>', adminFiles+'</body>');
-				fs.writeFileSync('compiled/'+obj.template, f);
-				cb(null, f);
-			}
-		while(s--) {
-			(function(x) {
-				getData(url, matches[s], obj, function(err, val) {
-					if(err) { 
-						cb(err);
-					} else {
-						getReturn(val, x);
-					}
-				});
-			}(s));
+	function replace(f) {
+		var matches = f.match(modelReplaces);
+		if(matches) {
+			getData(url, matches[0], obj, function(err, val) {
+				f = f.replace(matches[0], val);
+				replace(f, matches);
+			});
+		} else {
+			f = f.replace('</body>', adminFiles+'</body>');
+			fs.writeFileSync('compiled/'+obj.template, f);
+			cb(null, f);
 		}
-	} else {
-		cb(null, f);
 	}
+	replace(f);
 }
 
 function getData(url, str, obj, cb) {

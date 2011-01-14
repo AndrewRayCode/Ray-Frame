@@ -1,4 +1,4 @@
-var hover = hover = new Element('a').addClass('edit_btn').addEvent('click', editClick),
+var hover = hover = new Element('a').addClass('edit_btn'),
 	cancel = new Element('a').addClass('cancel_btn').addEvent('click', cancelClick),
 	send = new Element('a').addClass('send_btn').addEvent('click', sendClick),
 	currentEditor = {};
@@ -7,20 +7,28 @@ window.addEvent('domready', function() {
 	var pos;
 	$$('.edit_me').each(function(item) {
 		pos = item.getPosition();
-		hover.setStyles({top:pos.y, left:pos.x}).inject(document.body).match = item;
+		hover.clone().setStyles({top:pos.y, left:pos.x}).inject(document.body).match = item;
 	});
+
+	document.body.addEvent('click', bodyClickHandler);
 });
 
-function editClick(evt) {
-	currentEditor.edit = evt.target.setStyles({display: 'none'});
-	currentEditor.target = evt.target.match.setStyles({display:'none'});
-	var pos = evt.target.match.getPosition();
+function bodyClickHandler(evt) {
+	if(evt.target.hasClass('edit_btn')) {
+		editClick(evt.target);
+	}
+}
+
+function editClick(elem) {
+	currentEditor.edit = elem.setStyles({display: 'none'});
+	currentEditor.target = elem.match.setStyles({display:'none'});
+	var pos = elem.match.getPosition();
 
 	currentEditor.cancel = cancel.setStyles({display:'block', top:pos.y, left:pos.x}).inject(document.body);
 	currentEditor.send = send.setStyles({display:'block', top:pos.y, left:pos.x + 15}).inject(document.body);
 
-	evt.target.match.setStyles({display:'none'});
-	buildEditor(evt.target.match.get('id'));
+	elem.match.setStyles({display:'none'});
+	buildEditor(elem.match.get('id'));
 }
 
 function buildEditor(id) {
