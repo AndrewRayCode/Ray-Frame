@@ -116,21 +116,19 @@ function getData(url, str, obj, cb) {
 		val = obj[instructions.field] || '';
 	// If this is an included file we need to start the parse chain all over again
 	if(instructions.include) {
-		var lookup = url+'/'+instructions.field
+		var lookup = url+'/'+instructions.field;
 		client.hgetall(lookup, function(err, firstres) {
-			if(!err) {
+			if(err) {
 				// This thing is not yet in the database. Let's put it there!
 				var new_obj = {template: instructions.field};
 				// TODO: Here we create the db entry even if the template file does not exist.
 				// We should check for it and error up there if it doesn't exist
 				client.hmset(lookup, new_obj, function(err, added) {
-					serveTemplate(lookup, new_obj, function(a,b) {
-						cb(null, b);
-					});
+					serveTemplate(lookup, new_obj, cb);
 				});
 			} else {
 				// This thing is in the database, return it parsed
-				serveTemplate(url, firstres, cb);
+				serveTemplate(lookup, firstres, cb);
 			}
 		});
 	} else if(isAdmin && !instructions.noEdit) {
