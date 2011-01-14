@@ -6,6 +6,7 @@ var hover = hover = new Element('a').addClass('edit_btn'),
 window.addEvent('domready', function() {
 	var pos;
 	$$('.edit_me').each(function(item) {
+		item.setStyle('border', '2px solid red');
 		pos = item.getPosition();
 		hover.clone().setStyles({top:pos.y, left:pos.x}).inject(document.body).match = item;
 	});
