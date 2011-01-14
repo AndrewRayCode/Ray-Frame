@@ -95,31 +95,34 @@ function parseTemplate(url, obj, cb) {
 		return;
 	}
 
-	var matches = f.match(modelReplaces),
-		s = matches.length,
-		total = 0;
-		getReturn = function(value, x) {
-			f = f.replace(matches[x], value);
-			if(total++ == matches.length) {
-				go();
+	var matches = f.match(modelReplaces);
+	if(matches) {
+		var s = matches.length,
+			total = 0;
+			getReturn = function(value, x) {
+				f = f.replace(matches[x], value);
+				if(++total == matches.length) {
+					go();
+				}
+			},
+			go = function() {
+				f = f.replace('</body>', adminFiles+'</body>');
+				fs.writeFileSync('compiled/'+obj.template, f);
+				cb(null, f);
 			}
-		},
-		go = function() {
-			f = f.replace('</body>', adminFiles+'</body>');
-
-			fs.writeFileSync('compiled/'+obj.template, f);
-			cb(null, f);
+		while(s--) {
+			(function(x) {
+				getData(url, matches[s], obj, function(err, val) {
+					if(err) { 
+						cb(err);
+					} else {
+						getReturn(val, x);
+					}
+				});
+			}(s));
 		}
-	while(s--) {
-		getData(url, matches[s], obj, function(err, val) {
-			if(err) { 
-				cb(err);
-			} else {
-				return function(x) {
-					getReturn(val, x);
-				}(s);
-			}
-		});
+	} else {
+		cb(null, f);
 	}
 }
 
@@ -136,7 +139,9 @@ function getData(url, str, obj, cb) {
 				// TODO: Here we create the db entry even if the template file does not exist.
 				// We should check for it and error up there if it doesn't exist
 				client.hmset(lookup, new_obj, function(err, added) {
-					serveTemplate(lookup, new_obj, cb);
+					serveTemplate(lookup, new_obj, function(a,b) {
+						cb(null, b);
+					});
 				});
 			} else {
 				// This thing is in the database, return it parsed
@@ -145,8 +150,9 @@ function getData(url, str, obj, cb) {
 		});
 	} else if(isAdmin && !instructions.noEdit) {
 		cb(null, '<span class="edit_me" id="'+url+':'+instructions.raw+'">'+val+'</span>');
+	} else {
+		cb(null, val);
 	}
-	cb(null, val);
 }
 
 function getInstructions(plip) {
