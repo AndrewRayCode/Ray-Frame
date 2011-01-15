@@ -1,25 +1,30 @@
 var http = require('http'),
 	sys = require('sys'),
-	redis = require('redis'); 
+	redis = require('redis'),
+	couch_client = require('couch-client'),
+	couch = couch_client('/rayframe');
 	log = require('./lib/logger'),
 	fs = require('fs'),
 	path = require('path'),
 	express = require('express'),
-	client = redis.createClient().on('error', function(err) {
-		log.error('poop went kablamo: '+err);
-	}),
 	isAdmin = 1, // TODO: Authentication with login form, maybe user level permissions
 	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
 log.log_level = 'info';
-client.hgetall('/', function(err, res) {
-	if(res === null) {
-		client.HMSET('/', {template:'index.html', title:'hello', welcome_msg:'Welcome to this website!'}, function() {
-			console.log('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
-			runServer();
-		});
-	} else if(err) {
-		log.error('Aw snap, everything is terrible: '+err);
+
+
+couch.request('GET', '/rayframe', function(err, result) {
+	if(result.error) {
+		if(result.reason == 'no_db_file') {
+			couch.request('PUT', '/rayframe', function() {
+				couch.save({_id:'/', template:'index.html', title:'hello', welcome_msg:'welcome!'}, function() {
+				console.log('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
+					runServer();
+				});
+			});
+		} else {
+			log.error('Aw snap, everything is terrible: '+err);
+		}
 	} else {
 		runServer();
 	}
@@ -45,7 +50,7 @@ server.get(/.*/, function(req, res) {
 			res.end('Todo: this should be some standardized 404 page' + e);
 		}
 	} else {
-		client.hgetall(req.url, function(err, content) {
+		couch.get(req.url, function(err, content) {
 			if(content) {
 				serveTemplate(req.url, content, function(err, parsed) {
 					if(!err) {
@@ -99,6 +104,7 @@ function parseTemplate(url, obj, cb) {
 		var matches = f.match(modelReplaces);
 		if(matches) {
 			getData(url, matches[0], obj, function(err, val) {
+				log.warn('replacing ',matches[0],' with ',val);
 				f = f.replace(matches[0], val);
 				replace(f, matches);
 			});
@@ -117,13 +123,13 @@ function getData(url, str, obj, cb) {
 	// If this is an included file we need to start the parse chain all over again
 	if(instructions.include) {
 		var lookup = url+'/'+instructions.field;
-		client.hgetall(lookup, function(err, firstres) {
+		couch.get(lookup, function(err, firstres) {
 			if(err) {
 				// This thing is not yet in the database. Let's put it there!
-				var new_obj = {template: instructions.field};
+				var new_obj = {_id:lookup, template: instructions.field};
 				// TODO: Here we create the db entry even if the template file does not exist.
 				// We should check for it and error up there if it doesn't exist
-				client.hmset(lookup, new_obj, function(err, added) {
+				couch.save(new_obj, function(err, added) {
 					serveTemplate(lookup, new_obj, cb);
 				});
 			} else {
@@ -160,8 +166,10 @@ function guessContentType(file) {
 }
 
 function updateField(req, res) {
-	var parts = req.body.field.split(':');
-	client.hmset(parts[0], parts[1], req.body.value, function(err, dbres) {
+	var parts = req.body.field.split(':'),
+		obj = {_id:parts[0]};
+	obj[parts[1]] = req.body.value;
+	couch.save(obj, function(err, dbres) {
 		if(err) {
 			res.writeHead(200, {'Content-Type': 'text/json'});
 			res.send({status:'failure', message:err});

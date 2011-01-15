@@ -1,3 +1,7 @@
-Dependencies:
-node_redis: https://github.com/mranney/node_redis (81ac292fce718d0e89b2)
-express: https://github.com/visionmedia/express (5e0a80f227063fb7441a)
+Dependencies
+
+express
+	https://github.com/visionmedia/express (5e0a80f227063fb7441a)
+couch-client
+	https://github.com/creationix/couch-client (81fef481df9b26e469b8)
+	NOTE: Also requries CouchDb. For Windows I suggest CouchIO http://www.couch.io/get
