@@ -6,21 +6,24 @@ var hover = new Element('a').addClass('edit_btn'),
 	currentEditor = {};
 	
 window.addEvent('domready', function() {
+	wireUp(document.body).addEvent('click', bodyClickHandler);
+});
+
+function wireUp(elem) {
 	var pos;
-	$$('.edit_me').each(function(item) {
+	elem.getElements('.edit_me').each(function(item) {
 		item.setStyle('border', '2px solid red');
 		pos = item.getPosition();
 		hover.clone().setStyles({top:pos.y, left:pos.x}).inject(document.body).match = item;
 	});
 
-	$$('.edit_list').each(function(item) {
+	elem.getElements('.edit_list').each(function(item) {
 		item.setStyle('border', '2px solid brown');
 		pos = item.getPosition();
 		listHover.clone().setStyles({top:pos.y, left:pos.x}).inject(document.body).match = item;
 	});
-
-	document.body.addEvent('click', bodyClickHandler);
-});
+	return elem;
+}
 
 function bodyClickHandler(evt) {
 	if(evt.target.hasClass('edit_btn')) {
@@ -50,7 +53,18 @@ function listClick(elem) {
 
 function viewSelect(evt) {
 	if(!evt.target.hasClass('list_views')) {
-		evt.target.get('text')
+		new Request.JSON({
+			url: '/getView',
+			data: {view: evt.target.get('text')},
+			onSuccess: function(data) {
+				if(data.status == 'success') {
+					currentEditor.viewList.destroy();
+					wireUp(currentEditor.target.set('html', data.parsed));
+				} else {
+					alert(data.status+': '+data.message);
+				}
+			}
+		}).send();
 	}
 }
 

@@ -39,7 +39,7 @@ server.post('/getView', getView);
 
 server.get(/.*/, function(req, res) {
 	var path = req.url.split('/'),
-		dbPath = req.url == '/' ? 'root' : req.url.replace(/\//g, '');
+		dbPath = sanitizeUrl(req.url);
 	if(path[1] == 'static') {
 		try {
 			res.writeHead(200, {'Content-Type': guessContentType(req.url)});
@@ -123,18 +123,11 @@ function getData(url, str, obj, cb) {
 	// If this is an included file we need to start the parse chain all over again
 	if(instructions.include) {
 		var lookup = 'includes'+instructions.field;
-		couch.getDoc(lookup, function(err, firstres) {
+		getOrCreate(lookup, instructions.field, function(err, obj) {
 			if(err) {
-				// This thing is not yet in the database. Let's put it there!
-				var new_obj = {template: instructions.field};
-				// TODO: Here we create the db entry even if the template file does not exist.
-				// We should check for it and error up there if it doesn't exist
-				couch.saveDoc(lookup, new_obj, function(err, added) {
-					serveTemplate(lookup, new_obj, cb);
-				});
+				cb(err);
 			} else {
-				// This thing is in the database, return it parsed
-				serveTemplate(lookup, firstres, cb);
+				serveTemplate(lookup, obj, cb);
 			}
 		});
 	} else if(isAdmin) {
@@ -181,11 +174,17 @@ function removeListPage(req, res) {
 }
 
 function getView(req, res) {
-	fs.readdir('templates/'+req.body.view, function(err, file) {
+	getOrCreate(sanitizeUrl(req.url)+req.body.view, req.body.view, function(err, obj) {
 		if(err) {
 			res.send({status:'failure', message:err});
 		} else {
-			res.send({status:'success', templates:file});
+			serveTemplate(sanitizeUrl(req.url), obj, function(err, parsed) {
+				if(err) {
+					res.send({status:'failure', message:err});
+				} else {
+					res.send({status:'success', parsed:parsed});
+				}
+			});
 		}
 	});
 }
@@ -193,7 +192,7 @@ function getView(req, res) {
 function getTemplates(req, res) {
 	fs.readdir('templates/', function(err, files) {
 		if(err) {
-			res.send({status:'failure', message:err});
+			res.send({status:'failure', message:err.message});
 		} else {
 			var clean = [];
 			// Filter out VIM swap files for example
@@ -219,5 +218,25 @@ function updateField(req, res) {
 				res.send({status:'success', new_value:req.body.value});
 			}
 		});
+	});
+}
+
+function sanitizeUrl(str) {
+	return str == '/' ? 'root' : str.replace(/\//g, '');
+}
+
+function getOrCreate(path, template, cb) {
+	couch.getDoc(path, function(err, firstres) {
+		if(err) {
+			// This thing is not yet in the database. Let's put it there!
+			var new_obj = {template: template};
+			// TODO: Here we create the db entry even if the template file does not exist.
+			// We should check for it and error up there if it doesn't exist
+			couch.saveDoc(path, new_obj, function(err, added) {
+				cb(err, new_obj);
+			});
+		} else {
+			cb(null, firstres);
+		}
 	});
 }
