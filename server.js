@@ -11,8 +11,6 @@ var http = require('http'),
 	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
 log.log_level = 'info';
-
-
 couch.request('GET', '/rayframe', function(err, result) {
 	if(result.error) {
 		if(result.reason == 'no_db_file') {
@@ -96,7 +94,7 @@ function parseTemplate(url, obj, cb) {
 	try {
 		var f = fs.readFileSync('templates/'+obj.template).toString();
 	} catch(e) {
-		cb('Template not found for `'+obj.template+'`: '+e);
+		cb('Template not found for `'+sys.inspect(obj)+'`: '+e);
 		return;
 	}
 
@@ -104,7 +102,6 @@ function parseTemplate(url, obj, cb) {
 		var matches = f.match(modelReplaces);
 		if(matches) {
 			getData(url, matches[0], obj, function(err, val) {
-				log.warn('replacing ',matches[0],' with ',val);
 				f = f.replace(matches[0], val);
 				replace(f, matches);
 			});
@@ -166,15 +163,17 @@ function guessContentType(file) {
 }
 
 function updateField(req, res) {
-	var parts = req.body.field.split(':'),
-		obj = {_id:parts[0]};
-	obj[parts[1]] = req.body.value;
-	couch.save(obj, function(err, dbres) {
-		if(err) {
-			res.writeHead(200, {'Content-Type': 'text/json'});
-			res.send({status:'failure', message:err});
-		} else {
-			res.send({status:'success', new_value:req.body.value});
-		}
+	var parts = req.body.field.split(':');
+
+	couch.get(parts[0], function(err, doc) {
+		doc[parts[1]] = req.body.value;
+		couch.save(doc, function(err, dbres) {
+			if(err) {
+				res.writeHead(200, {'Content-Type': 'text/json'});
+				res.send({status:'failure', message:err});
+			} else {
+				res.send({status:'success', new_value:req.body.value});
+			}
+		});
 	});
 }
