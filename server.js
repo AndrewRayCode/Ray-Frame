@@ -1,8 +1,8 @@
 var http = require('http'),
 	sys = require('sys'),
 	redis = require('redis'),
-	couch_client = require('couch-client'),
-	couch = couch_client('/rayframe');
+	couch_client = require('couchdb'),
+	couch = couch_client.createClient(5984, 'localhost').db('rayframe'),
 	log = require('./lib/logger'),
 	fs = require('fs'),
 	path = require('path'),
@@ -11,20 +11,15 @@ var http = require('http'),
 	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
 log.log_level = 'info';
-couch.request('GET', '/rayframe', function(err, result) {
-	if(result.error) {
-		if(result.reason == 'no_db_file') {
-			couch.request('PUT', '/rayframe', function() {
-				couch.save({_id:'/', template:'index.html', title:'hello', welcome_msg:'welcome!'}, function() {
-				console.log('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
-					runServer();
-				});
-			});
-		} else {
-			log.error('Aw snap, everything is terrible: '+err);
-		}
-	} else {
+couch.getDoc('root', function(err, result) {
+	// TODO: Do checks for required directories, files, etc
+	if(result) {
 		runServer();
+	} else {
+		couch.saveDoc('root', {template:'index.html', title:'hello', welcome_msg:'welcome!'}, function() {
+		console.log('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
+			runServer();
+		});
 	}
 });
 
@@ -35,33 +30,40 @@ server.error(function(err, req, res) {
 	res.send('what the heck');
 });
 
+// TODO: This all needs to be one entry point for simpler authentication
 server.post('/update', updateField);
+server.post('/addListPage', addListPage);
+server.post('/removeListPage', removeListPage);
+server.post('/getTemplates', getTemplates);
+server.post('/getView', getView);
 
 server.get(/.*/, function(req, res) {
-	var path = req.url.split('/');
+	var path = req.url.split('/'),
+		dbPath = req.url == '/' ? 'root' : req.url.replace(/\//g, '');
 	if(path[1] == 'static') {
 		try {
 			res.writeHead(200, {'Content-Type': guessContentType(req.url)});
+			// TODO: readFileSync to avoid callback nonsense, but it's unavoidable, so make non-sync
 			res.end(fs.readFileSync(req.url.substring(1)));
 		} catch(e) {
 			res.writeHead(404, {'Content-Type': 'text/html'});
 			res.end('Todo: this should be some standardized 404 page' + e);
 		}
 	} else {
-		couch.get(req.url, function(err, content) {
+		couch.getDoc(dbPath, function(err, content) {
 			if(content) {
-				serveTemplate(req.url, content, function(err, parsed) {
+				serveTemplate(dbPath, content, function(err, parsed) {
 					if(!err) {
 						res.writeHead(200, {'Content-Type': 'text/html'});
 						res.end(parsed);
 					} else {
-						log.error('uh oh: '+err);
+						log.error('uh oh: '+sys.inspect(err));
 						res.writeHead(500, {'Content-Type': 'text/html'});
 						res.end('Internal server errrrrrror');
 					}
 				});
 			} else if (err) {
-				log.error('uh oh: '+err);
+				log.error('uh oh: '+sys.inspect(err));
 				res.writeHead(500, {'Content-Type': 'text/html'});
 				res.end('Internal server errrrrrror');
 			} else {
@@ -79,6 +81,7 @@ function runServer() {
 }
 
 function serveTemplate(url, obj, cb) {
+	// TODO: Right now we are forcing the recreation of the template from disk. Original plan was to store those parsed files in compiled/ directory. Look into this
 	parseTemplate(url, obj, cb);
 	//try {
 		//var f = fs.readFileSync('compiled/'+obj.template);
@@ -119,14 +122,14 @@ function getData(url, str, obj, cb) {
 		val = obj[instructions.field] || '';
 	// If this is an included file we need to start the parse chain all over again
 	if(instructions.include) {
-		var lookup = url+'/'+instructions.field;
-		couch.get(lookup, function(err, firstres) {
+		var lookup = 'includes'+instructions.field;
+		couch.getDoc(lookup, function(err, firstres) {
 			if(err) {
 				// This thing is not yet in the database. Let's put it there!
-				var new_obj = {_id:lookup, template: instructions.field};
+				var new_obj = {template: instructions.field};
 				// TODO: Here we create the db entry even if the template file does not exist.
 				// We should check for it and error up there if it doesn't exist
-				couch.save(new_obj, function(err, added) {
+				couch.saveDoc(lookup, new_obj, function(err, added) {
 					serveTemplate(lookup, new_obj, cb);
 				});
 			} else {
@@ -134,8 +137,14 @@ function getData(url, str, obj, cb) {
 				serveTemplate(lookup, firstres, cb);
 			}
 		});
-	} else if(isAdmin && !instructions.noEdit) {
-		cb(null, '<span class="edit_me" id="'+url+':'+instructions.raw+'">'+val+'</span>');
+	} else if(isAdmin) {
+		if(instructions.list) {
+			cb(null, '<span class="edit_list" id="'+url+':'+instructions.raw+'">'+val+'</span>');
+		} else if(!instructions.noEdit) {
+			cb(null, '<span class="edit_me" id="'+url+':'+instructions.raw+'">'+val+'</span>');
+		} else {
+			cb(null, val);
+		}
 	} else {
 		cb(null, val);
 	}
@@ -149,7 +158,8 @@ function getInstructions(plip) {
 		raw: raw,
 		noEdit: fields.indexOf('noEdit') > -1 ? true : false,
 		//TODO: better way to identify {{template.html}} import
-		include: fields[0].indexOf('.html') > 0 ? true : false
+		include: fields[0].indexOf('.html') > 0 ? true : false,
+		list: fields[1] == 'list' ? true : false
 	};
 }
 
@@ -162,14 +172,48 @@ function guessContentType(file) {
 	}
 }
 
+function addListPage(req, res) {
+
+}
+
+function removeListPage(req, res) {
+
+}
+
+function getView(req, res) {
+	fs.readdir('templates/'+req.body.view, function(err, file) {
+		if(err) {
+			res.send({status:'failure', message:err});
+		} else {
+			res.send({status:'success', templates:file});
+		}
+	});
+}
+
+function getTemplates(req, res) {
+	fs.readdir('templates/', function(err, files) {
+		if(err) {
+			res.send({status:'failure', message:err});
+		} else {
+			var clean = [];
+			// Filter out VIM swap files for example
+			for(var x=0; x<files.length; x++) {
+				if(/\.html$/.test(files[x])) {
+					clean.push(files[x]);
+				}
+			}
+			res.send({status:'success', templates:clean});
+		}
+	});
+}
+
 function updateField(req, res) {
 	var parts = req.body.field.split(':');
 
-	couch.get(parts[0], function(err, doc) {
+	couch.getDoc(parts[0], function(err, doc) {
 		doc[parts[1]] = req.body.value;
-		couch.save(doc, function(err, dbres) {
+		couch.saveDoc(doc._id, doc, function(err, dbres) {
 			if(err) {
-				res.writeHead(200, {'Content-Type': 'text/json'});
 				res.send({status:'failure', message:err});
 			} else {
 				res.send({status:'success', new_value:req.body.value});
