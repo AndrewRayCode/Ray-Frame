@@ -7,7 +7,7 @@ var http = require('http'),
 	path = require('path'),
 	express = require('express'),
 	isAdmin = 1, // TODO: Authentication with login form, maybe user level permissions
-	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
+	adminFiles = '<script src="/static/admin/jquery-1.5.min.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
 log.log_level = 'info';
 var server = express.createServer();

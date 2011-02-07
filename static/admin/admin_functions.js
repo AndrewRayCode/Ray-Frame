@@ -1,102 +1,96 @@
 // TODO: Namespace the edit classes to avoid potential website conflicts
-var hover = new Element('a').addClass('edit_btn'),
-	listHover = new Element('a').addClass('list_edit_btn'),
-	cancel = new Element('a').addClass('cancel_btn').addEvent('click', cancelClick),
-	send = new Element('a').addClass('send_btn').addEvent('click', sendClick),
+var hover = $('<a></a>').addClass('edit_btn'),
+	listHover = $('<a></a>').addClass('list_edit_btn'),
+	cancel = $('<a></a>').addClass('cancel_btn').click(cancelClick),
+	send = $('<a></a>').addClass('send_btn').click(sendClick),
 	currentEditor = {};
 	
-window.addEvent('domready', function() {
-	wireUp(document.body).addEvent('click', bodyClickHandler);
+$(document).ready(function() {
+	wireUp(document.body).click(bodyClickHandler);
 });
 
 function wireUp(elem) {
-	var pos;
-	elem.getElements('.edit_me').each(function(item) {
-		item.setStyle('border', '2px solid red');
-		pos = item.getPosition();
-		hover.clone().setStyles({top:pos.y, left:pos.x}).inject(document.body).match = item;
+    var pos;
+    elem = $(elem);
+	elem.find('.edit_me').each(function(i, item) {
+        item = $(item);
+        pos = item.css('border', '2px solid red').offset();
+        hover.clone().css({top:pos.top, left:pos.left}).appendTo(document.body).data('match', item);
 	});
 
-	elem.getElements('.edit_list').each(function(item) {
-		item.setStyle('border', '2px solid brown');
-		pos = item.getPosition();
-		listHover.clone().setStyles({top:pos.y, left:pos.x}).inject(document.body).match = item;
+	elem.find('.edit_list').each(function(i, item) {
+        item = $(item);
+        pos = item.css('border', '2px solid brown').offset();
+        listHover.clone().css({top:pos.top, left:pos.left}).appendTo(document.body).data('match', item);
 	});
 	return elem;
 }
 
 function bodyClickHandler(evt) {
-	if(evt.target.hasClass('edit_btn')) {
-		editClick(evt.target);
-	} else if(evt.target.hasClass('list_edit_btn')) {
-		listClick(evt.target);
+    var t = $(evt.target);
+	if(t.hasClass('edit_btn')) {
+		editClick(t);
+	} else if(t.hasClass('list_edit_btn')) {
+		listClick(t);
 	}
 }
 
 function listClick(elem) {
-	new Request.JSON({
-		url: '/getTemplates',
-		onSuccess: function(data) {
-			if(data.status == 'success') {
-				currentEditor.target = elem.match;
-				currentEditor.viewList = new Element('div').addClass('list_views').inject(document.body).addEvent('click', viewSelect);
+	$.post('/getTemplates', function(data) {
+        if(data.status == 'success') {
+            currentEditor.target = elem.data('match');
+            currentEditor.viewList = $('<div></div>').addClass('list_views').appendTo(document.body).click(viewSelect);
 
-				for(var x=0; x<data.templates.length; x++) {
-					new Element('div').set('text', data.templates[x]).inject(currentEditor.viewList);
-				}
-			} else {
-				alert(data.status+': '+data.message);
-			}
-		}
-	}).send();
+            for(var x=0; x<data.templates.length; x++) {
+                $('<div></div>').text(data.templates[x]).appendTo(currentEditor.viewList);
+            }
+        } else {
+            alert(data.status+': '+data.message);
+        }
+    });
 }
 
 function viewSelect(evt) {
-	if(!evt.target.hasClass('list_views')) {
-		new Request.JSON({
-			url: '/getView',
-			data: {view: evt.target.get('text')},
-			onSuccess: function(data) {
-				if(data.status == 'success') {
-					currentEditor.viewList.destroy();
-					wireUp(currentEditor.target.set('html', data.parsed));
-				} else {
-					alert(data.status+': '+data.message);
-				}
-			}
-		}).send();
+    var t = $(evt.target);
+	if(!t.hasClass('list_views')) {
+		$.post('/getView',{view: t.text()}, function(data) {
+            if(data.status == 'success') {
+                currentEditor.viewList.remove();
+                wireUp(currentEditor.target.html(data.parsed));
+            } else {
+                alert(data.status+': '+data.message);
+            }
+        });
 	}
 }
 
 function editClick(elem) {
-	currentEditor.edit = elem.setStyles({display: 'none'});
-	currentEditor.target = elem.match.setStyles({display:'none'});
-	var pos = elem.match.getPosition();
+	currentEditor.edit = elem.css({display: 'none'});
+    currentEditor.target = elem.data('match').css({display:'none'});
+    var pos = elem.data('match').offset();
 
-	currentEditor.cancel = cancel.setStyles({display:'block', top:pos.y, left:pos.x}).inject(document.body);
-	currentEditor.send = send.setStyles({display:'block', top:pos.y, left:pos.x + 15}).inject(document.body);
+	currentEditor.cancel = cancel.css({display:'block', top:pos.top, left:pos.left}).appendTo(document.body);
+	currentEditor.send = send.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
 
-	elem.match.setStyles({display:'none'});
-	buildEditor(elem.match.get('id'));
+    elem.data('match').css({display:'none'});
+    buildEditor(elem.data('match').attr('id'));
 }
 
 function buildEditor(id) {
-	currentEditor.input = new Element('input').set({type: 'text', value:$(id).get('html')}).inject($(id), 'after');
+    id = '#'+id.replace(/:/g, '\\:');
+	currentEditor.input = $('<input></input>').attr('type', 'text').val($(id).html()).insertAfter($(id));
 }
 
 function sendClick(evt) {
-	new Request.JSON({
-		url: '/update',
-		data: {field:currentEditor.target.get('id'), value:currentEditor.input.get('value')},
-		onSuccess: function(data) {
-			if(data.status == 'success') {
-				currentEditor.target.set('html', data.new_value);
-				closeEdit(evt.target.match);
-			} else {
-				alert(data.status+': '+data.message);
-			}
-		}
-	}).send();
+    var t = $(evt.target);
+	$.post('/update', {field:currentEditor.target.attr('id'), value:currentEditor.input.val()}, function(data) {
+        if(data.status == 'success') {
+            currentEditor.target.html(data.new_value);
+            closeEdit(t.data('match'));
+        } else {
+            alert(data.status+': '+data.message);
+        }
+    });
 }
 
 function cancelClick() {
@@ -104,9 +98,9 @@ function cancelClick() {
 }
 
 function closeEdit(item) {
-	currentEditor.cancel.setStyle('display', 'none');
-	currentEditor.send.setStyle('display', 'none');
-	currentEditor.input.destroy();
-	currentEditor.target.setStyles({display: 'block'});
-	currentEditor.edit.setStyles({display: 'block'});
+	currentEditor.cancel.css('display', 'none');
+	currentEditor.send.css('display', 'none');
+	currentEditor.input.remove();
+	currentEditor.target.css({display: 'block'});
+	currentEditor.edit.css({display: 'block'});
 }
