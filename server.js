@@ -1,8 +1,7 @@
 var http = require('http'),
 	sys = require('sys'),
 	redis = require('redis'),
-	couch_client = require('couchdb'),
-	couch = couch_client.createClient(5984, 'localhost').db('rayframe'),
+	couch_client = require('couchdb').createClient(5984, 'localhost'),
 	log = require('./lib/logger'),
 	fs = require('fs'),
 	path = require('path'),
@@ -11,19 +10,21 @@ var http = require('http'),
 	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
 log.log_level = 'info';
-couch.getDoc('root', function(err, result) {
-	// TODO: Do checks for required directories, files, etc
-	if(result) {
-		runServer();
-	} else {
-		couch.saveDoc('root', {template:'index.html', title:'hello', welcome_msg:'welcome!'}, function() {
-		console.log('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
-			runServer();
-		});
-	}
+
+// Reset the database on every startup for now
+var couch = couch_client.db('rayframe');
+if(couch.exists()) {
+    couch.remove();
+}
+couch.bulkDocs([
+    {key:'root', template:'index.html', title:'hello'},
+    {url:'.', chain:['root']}],
+    function() {
+        console.log('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
+        runServer();
 });
 
-var server = express.createServer()
+var server = express.createServer();
 server.use(express.bodyDecoder());
 server.error(function(err, req, res) {
 	log.warn('Server error: '+err);
