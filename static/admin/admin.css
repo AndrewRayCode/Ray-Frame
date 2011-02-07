@@ -12,3 +12,4 @@ body {margin:0; padding:0; background:#ddd; font-family:Verdana;}
 .wrap {width:600px; background:#fff; border:1px solid #333; margin:0 auto; padding:20px;}
 .header {background:#ddffdd; padding:10px; margin:10px;}
 .blog {border:1px solid #eee; margin:4px; padding:4px;}
+.intro {background:#ddd; text-shadow:1px 1px 1px #fff; color:#333; border:1px solid #333; padding:10px; margin:10px;}

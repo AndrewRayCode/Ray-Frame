@@ -45,6 +45,7 @@ couch.exists(function(err, exists) {
                     couch.bulkDocs({docs: [
                         // Bulkdocs takes _id, not key
                         {_id:'root', template:'index.html', title:'hello'}, // root is special case. Let couch name other keys for page objects
+                        {_id:'global', template:'global.html'}, // another by convention
                         {_id:sanitizeUrl('/'), reference:'root', chain:[]}]}, // TODO: Should URLs get their own database, or view?
                         function(err) {
                             log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
@@ -135,28 +136,67 @@ function serveTemplate(urlObj, pageData, cb) {
 	//}
 }
 
-var modelReplaces = /\{\{\S+?\}\}/g;
+    // Regex to find {{ stuff }}
+var modelReplaces = /\{\{\S+?\}\}/g,
+    // Regex to find {directive} TODO: This will match {{dammit}} as well
+    globalReplaces = /\{\S+?\}/g;
 
 // Put the template into compiled and return the parsed data
 function parseTemplate(urlObj, pageData, cb) {
+    var f, child;
+    // First read the template from the templates directory
 	try {
-		var f = fs.readFileSync('templates/'+pageData.template).toString();
+		f = fs.readFileSync('templates/'+pageData.template).toString();
 	} catch(e) {
 		cb('Template not found for `'+sys.inspect(pageData)+'`: '+e);
 		return;
 	}
 
+    // Append the admin files and save the compiled page
+    function end(f) {
+        if(isAdmin) {
+            f = f.replace('</body>', adminFiles+'</body>');
+        }
+        fs.writeFileSync('compiled/'+urlObj._id, f);
+        cb(null, f);
+    }
+    // Function to handle a global object if we have one (think template with header, footer, etc)
+    function replaceGlobal(f) {
+        var matches = f.match(globalReplaces);
+        if(matches) {
+            // Find out what we are trying to insert
+            var instr = getSpecial(matches[0]);
+            // Use special child directive to reference object this global wraps
+            if(instr.field == 'child') {
+                f = f.replace(matches[0], child);
+            } else if(instr.attr) {
+                f = f.replace(matches[0], pageData[instr.attr]);
+            }
+            replaceGlobal(f);
+        } else {
+            end(f);
+        }
+    }
+
+    // Recursive replace funciton to update document TODO: Replace with HTML parser?
 	function replace(f) {
 		var matches = f.match(modelReplaces);
 		if(matches) {
+            // Replace the {{ .. }} with whatever it's supposed to be
 			getData(pageData._id, matches[0], pageData, function(err, val) {
 				f = f.replace(matches[0], val);
 				replace(f, matches);
 			});
 		} else {
-			f = f.replace('</body>', adminFiles+'</body>');
-			fs.writeFileSync('compiled/'+urlObj._id, f);
-			cb(null, f);
+            couch.getDoc('global', function(err, globalDoc) {
+                if(globalDoc) {
+                    child = f;
+                    var g = fs.readFileSync('templates/'+globalDoc.template).toString();
+                    replaceGlobal(g);
+                } else {
+                    end();
+                }
+            });
 		}
 	}
 	replace(f);
@@ -188,6 +228,7 @@ function getData(url, str, obj, cb) {
 	}
 }
 
+// Parse a "plip" which is anything in {{ }} on a template
 function getInstructions(plip) {
 	var raw = plip.substring(2, plip.length-2),
 		fields = raw.split(':');
@@ -199,6 +240,16 @@ function getInstructions(plip) {
 		include: fields[0].indexOf('.html') > 0 ? true : false,
 		list: fields[1] == 'list' ? true : false
 	};
+}
+
+// Parse the instruction from {something}
+function getSpecial(instr) {
+    var field = instr.substring(1, instr.length-1),
+        split = field.split('.');
+    return {
+        field: field,
+        attr: split[1] || null
+    };
 }
 
 function guessContentType(file) {
