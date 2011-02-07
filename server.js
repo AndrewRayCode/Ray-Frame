@@ -25,12 +25,13 @@ couch.exists(function(err, exists) {
             if(err) {
                 log.error(sys.inspect(err));
             } else {
-                couch = couch_client.db('rayframe');
                 log.info('Recreated database `rayframe`');
+                couch = couch_client.db('rayframe');
 
-                // Create a view for url lookup
+                // Create a view in a design doc TODO: Is there a way to multi these two calls?
                 couch.saveDesign('master', {
                     views: {
+                        // Not currently needed, but this is the syntax for a view save
                         'url':{
                             map: function(doc) {
                                 if(doc.url) {
@@ -42,9 +43,10 @@ couch.exists(function(err, exists) {
                 }, function(err) {
                     // Create our homepage object and url object for it
                     couch.bulkDocs({docs: [
-                        {key:'root', template:'index.html', title:'hello'},
-                        {url:'.', reference:'root', chain:[]}]},
-                        function() {
+                        // Bulkdocs takes _id, not key
+                        {_id:'root', template:'index.html', title:'hello'}, // root is special case. Let couch name other keys for page objects
+                        {_id:sanitizeUrl('/'), reference:'root', chain:[]}]}, // TODO: Should URLs get their own database, or view?
+                        function(err) {
                             log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
                             runServer();
                     });
@@ -85,25 +87,26 @@ server.get(/.*/, function(req, res) {
 		}
 	} else {
         //db.view(design, view, [query], [cb])
-        couch.view('master', 'url', {key: dbPath}, function(err, result) {
+        couch.getDoc(dbPath, function(err, urlObject) {
             if(err) {
-				log.error('Error fetching URL view: '+sys.inspect(err));
+				log.error('Error fetching URL view `'+dbPath+'`: '+sys.inspect(err));
 				res.writeHead(500, {'Content-Type': 'text/html'});
 				res.end('Internal server errrrrrror');
-            // 404 or somehow impossible more than one object per url
-            } else if(result.total_rows != 1) {
-                log.warn('Requested page was not found: '+sys.inspect(req.url)+' (lookup in view was `'+dbPath+'`)');
-				res.writeHead(404, {'Content-Type': 'text/html'});
-				res.end('The page you requested was not found on this server :(');
             } else {
-                couch.getDoc(result.rows[0].value, function(err, page) {
-                    serveTemplate(page, function(err, parsed) {
-                        if(err) {
-                            log.error('Error serving template for `'+req.url+' (CouchDB key `'+dbPath+'`)'+sys.inspect(err));
-                            res.writeHead(500, {'Content-Type': 'text/html'});
-                            res.end('Internal server errrrrrror');
-                        }
-                    });
+                couch.getDoc(urlObject.reference, function(err, page) {
+                    if(err) {
+                        log.error('!!! URL object found but no page data found ('+urlObject.reference+')!: '+sys.inspect(err));
+                        res.writeHead(500, {'Content-Type': 'text/html'});
+                        res.end('Internal server errrrrrror');
+                    } else {
+                        serveTemplate(urlObject, page, function(err, parsed) {
+                            if(err) {
+                                log.error('Error serving template for `'+req.url+' (CouchDB key `'+dbPath+'`): '+sys.inspect(err));
+                                res.writeHead(500, {'Content-Type': 'text/html'});
+                                res.end('Internal server errrrrrror');
+                            }
+                        });
+                    }
                 });
 
             }
@@ -114,12 +117,12 @@ server.get(/.*/, function(req, res) {
 function runServer() {
 	server.listen(8080);
 	log.info('Server running!');
-
 }
 
-function serveTemplate(url, obj, cb) {
+function serveTemplate(urlObj, pageData, cb) {
 	// TODO: Right now we are forcing the recreation of the template from disk. Original plan was to store those parsed files in compiled/ directory. Look into this
-	parseTemplate(url, obj, cb);
+	parseTemplate(urlObj, pageData, cb);
+    
 	//try {
 		//var f = fs.readFileSync('compiled/'+obj.template);
 		//return f;
@@ -258,10 +261,10 @@ function updateField(req, res) {
 	});
 }
 
-// Replace all `/` in the url with `.`, never any trailing or leading `.`s except for root page
+// Couch can't handle `/` in keys, so relace with `.`
 function sanitizeUrl(str) {
+    // Never have leading or trailing `.`s, except homepage which is just '.'
     return str.replace(/\//g, '.').replace(/(.+)\.$/, '$1').replace(/^\.(.+)/, '$1');
-
 }
 
 function getOrCreate(path, template, cb) {
