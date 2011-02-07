@@ -28,12 +28,26 @@ couch.exists(function(err, exists) {
                 couch = couch_client.db('rayframe');
                 log.info('Recreated database `rayframe`');
 
-                couch.bulkDocs([
-                    {key:'root', template:'index.html', title:'hello'},
-                    {url:'.', reference:'root', chain:[]}],
-                    function() {
-                        log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
-                        runServer();
+                // Create a view for url lookup
+                couch.saveDesign('master', {
+                    views: {
+                        'url':{
+                            map: function(doc) {
+                                if(doc.url) {
+                                    emit(doc.url, doc.reference);
+                                }
+                            }
+                        }
+                    }
+                }, function(err) {
+                    // Create our homepage object and url object for it
+                    couch.bulkDocs({docs: [
+                        {key:'root', template:'index.html', title:'hello'},
+                        {url:'.', reference:'root', chain:[]}]},
+                        function() {
+                            log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
+                            runServer();
+                    });
                 });
             }
         });
@@ -58,6 +72,8 @@ server.post('/getView', getView);
 server.get(/.*/, function(req, res) {
 	var path = req.url.split('/'),
 		dbPath = sanitizeUrl(req.url);
+
+    // Static file handling
 	if(path[1] == 'static') {
 		try {
 			res.writeHead(200, {'Content-Type': guessContentType(req.url)});
@@ -68,29 +84,30 @@ server.get(/.*/, function(req, res) {
 			res.end('Todo: this should be some standardized 404 page' + e);
 		}
 	} else {
-		couch.getDoc(dbPath, function(err, urlObj) {
-			if(urlObj) {
-                couch.getDoc(urlObj.reference, function(err, content) {
-                    serveTemplate(dbPath, content, function(err, parsed) {
-                        if(!err) {
-                            res.writeHead(200, {'Content-Type': 'text/html'});
-                            res.end(parsed);
-                        } else {
-                            log.error('uh oh: '+sys.inspect(err));
+        //db.view(design, view, [query], [cb])
+        couch.view('master', 'url', {key: dbPath}, function(err, result) {
+            if(err) {
+				log.error('Error fetching URL view: '+sys.inspect(err));
+				res.writeHead(500, {'Content-Type': 'text/html'});
+				res.end('Internal server errrrrrror');
+            // 404 or somehow impossible more than one object per url
+            } else if(result.total_rows != 1) {
+                log.warn('Requested page was not found: '+sys.inspect(req.url)+' (lookup in view was `'+dbPath+'`)');
+				res.writeHead(404, {'Content-Type': 'text/html'});
+				res.end('The page you requested was not found on this server :(');
+            } else {
+                couch.getDoc(result.rows[0].value, function(err, page) {
+                    serveTemplate(page, function(err, parsed) {
+                        if(err) {
+                            log.error('Error serving template for `'+req.url+' (CouchDB key `'+dbPath+'`)'+sys.inspect(err));
                             res.writeHead(500, {'Content-Type': 'text/html'});
                             res.end('Internal server errrrrrror');
                         }
                     });
                 });
-			} else if (err) {
-				log.error('uh oh: '+sys.inspect(err));
-				res.writeHead(500, {'Content-Type': 'text/html'});
-				res.end('Internal server errrrrrror');
-			} else {
-				res.writeHead(404, {'Content-Type': 'text/html'});
-				res.end('UR KRAP IS MISSN');
-			}
-		});
+
+            }
+        });
 	}
 });
 
@@ -111,7 +128,7 @@ function serveTemplate(url, obj, cb) {
 	//}
 }
 
-var modelReplaces = /{{\S+?}}/g;
+var modelReplaces = /\{\{\S+?\}\}/g;
 
 function parseTemplate(url, obj, cb) {
 	try {
@@ -241,8 +258,10 @@ function updateField(req, res) {
 	});
 }
 
+// Replace all `/` in the url with `.`, never any trailing or leading `.`s except for root page
 function sanitizeUrl(str) {
-    return str == '/' ? 'root' : str.replace(/\//g, '.').replace(/\.$/, '');
+    return str.replace(/\//g, '.').replace(/(.+)\.$/, '$1').replace(/^\.(.+)/, '$1');
+
 }
 
 function getOrCreate(path, template, cb) {
