@@ -10,26 +10,43 @@ var http = require('http'),
 	adminFiles = '<script src="/static/admin/mootools.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
 log.log_level = 'info';
-
-// Reset the database on every startup for now
-var couch = couch_client.db('rayframe');
-if(couch.exists()) {
-    couch.remove();
-}
-couch.bulkDocs([
-    {key:'root', template:'index.html', title:'hello'},
-    {url:'.', chain:['root']}],
-    function() {
-        console.log('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
-        runServer();
-});
-
 var server = express.createServer();
 server.use(express.bodyDecoder());
 server.error(function(err, req, res) {
 	log.warn('Server error: '+err);
 	res.send('what the heck');
 });
+
+// Reset the database on every startup for now
+var couch = couch_client.db('rayframe');
+couch.exists(function(err, exists) {
+    function recreate() {
+        couch.create(function(err) {
+            if(err) {
+                log.error(sys.inspect(err));
+            } else {
+                couch = couch_client.db('rayframe');
+                log.info('Recreated database `rayframe`');
+
+                couch.bulkDocs([
+                    {key:'root', template:'index.html', title:'hello'},
+                    {url:'.', reference:'root', chain:[]}],
+                    function() {
+                        log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
+                        runServer();
+                });
+            }
+        });
+    }
+
+    if(exists) {
+        log.info('Existing database found, deleting for development');
+        couch.remove(recreate);
+    } else {
+        recreate();
+    }
+});
+
 
 // TODO: This all needs to be one entry point for simpler authentication
 server.post('/update', updateField);
@@ -51,18 +68,20 @@ server.get(/.*/, function(req, res) {
 			res.end('Todo: this should be some standardized 404 page' + e);
 		}
 	} else {
-		couch.getDoc(dbPath, function(err, content) {
-			if(content) {
-				serveTemplate(dbPath, content, function(err, parsed) {
-					if(!err) {
-						res.writeHead(200, {'Content-Type': 'text/html'});
-						res.end(parsed);
-					} else {
-						log.error('uh oh: '+sys.inspect(err));
-						res.writeHead(500, {'Content-Type': 'text/html'});
-						res.end('Internal server errrrrrror');
-					}
-				});
+		couch.getDoc(dbPath, function(err, urlObj) {
+			if(urlObj) {
+                couch.getDoc(urlObj.reference, function(err, content) {
+                    serveTemplate(dbPath, content, function(err, parsed) {
+                        if(!err) {
+                            res.writeHead(200, {'Content-Type': 'text/html'});
+                            res.end(parsed);
+                        } else {
+                            log.error('uh oh: '+sys.inspect(err));
+                            res.writeHead(500, {'Content-Type': 'text/html'});
+                            res.end('Internal server errrrrrror');
+                        }
+                    });
+                });
 			} else if (err) {
 				log.error('uh oh: '+sys.inspect(err));
 				res.writeHead(500, {'Content-Type': 'text/html'});
@@ -77,7 +96,7 @@ server.get(/.*/, function(req, res) {
 
 function runServer() {
 	server.listen(8080);
-	console.log('Server running!');
+	log.info('Server running!');
 
 }
 
@@ -223,7 +242,7 @@ function updateField(req, res) {
 }
 
 function sanitizeUrl(str) {
-	return str == '/' ? 'root' : str.replace(/\//g, '');
+    return str == '/' ? 'root' : str.replace(/\//g, '.').replace(/\.$/, '');
 }
 
 function getOrCreate(path, template, cb) {
