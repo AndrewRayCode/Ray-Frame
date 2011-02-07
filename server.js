@@ -104,6 +104,9 @@ server.get(/.*/, function(req, res) {
                                 log.error('Error serving template for `'+req.url+' (CouchDB key `'+dbPath+'`): '+sys.inspect(err));
                                 res.writeHead(500, {'Content-Type': 'text/html'});
                                 res.end('Internal server errrrrrror');
+                            } else {
+                                res.writeHead(200, {'Content-Type': 'text/html'});
+                                res.end(parsed);
                             }
                         });
                     }
@@ -119,6 +122,7 @@ function runServer() {
 	log.info('Server running!');
 }
 
+// Serve a template from cache or get new version
 function serveTemplate(urlObj, pageData, cb) {
 	// TODO: Right now we are forcing the recreation of the template from disk. Original plan was to store those parsed files in compiled/ directory. Look into this
 	parseTemplate(urlObj, pageData, cb);
@@ -133,24 +137,25 @@ function serveTemplate(urlObj, pageData, cb) {
 
 var modelReplaces = /\{\{\S+?\}\}/g;
 
-function parseTemplate(url, obj, cb) {
+// Put the template into compiled and return the parsed data
+function parseTemplate(urlObj, pageData, cb) {
 	try {
-		var f = fs.readFileSync('templates/'+obj.template).toString();
+		var f = fs.readFileSync('templates/'+pageData.template).toString();
 	} catch(e) {
-		cb('Template not found for `'+sys.inspect(obj)+'`: '+e);
+		cb('Template not found for `'+sys.inspect(pageData)+'`: '+e);
 		return;
 	}
 
 	function replace(f) {
 		var matches = f.match(modelReplaces);
 		if(matches) {
-			getData(url, matches[0], obj, function(err, val) {
+			getData(pageData._id, matches[0], pageData, function(err, val) {
 				f = f.replace(matches[0], val);
 				replace(f, matches);
 			});
 		} else {
 			f = f.replace('</body>', adminFiles+'</body>');
-			fs.writeFileSync('compiled/'+obj.template, f);
+			fs.writeFileSync('compiled/'+urlObj._id, f);
 			cb(null, f);
 		}
 	}
@@ -261,10 +266,10 @@ function updateField(req, res) {
 	});
 }
 
-// Couch can't handle `/` in keys, so relace with `.`
+// Couch can't handle `/` in keys, so relace with `~`
 function sanitizeUrl(str) {
-    // Never have leading or trailing `.`s, except homepage which is just '.'
-    return str.replace(/\//g, '.').replace(/(.+)\.$/, '$1').replace(/^\.(.+)/, '$1');
+    // Never have leading or trailing `.`s, except homepage which is just '~'
+    return str.replace(/\//g, '~').replace(/(.+)~$/, '$1').replace(/^~(.+)/, '$1');
 }
 
 function getOrCreate(path, template, cb) {
