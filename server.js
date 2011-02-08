@@ -272,22 +272,6 @@ function renderList(instructions, pageData, cb) {
             cb('Error reading link template `'+template_view+'`: '+sys.inspect(e));
         }
 
-        function replace(f, pageData, finish) {
-            var matches = f.match(modelReplaces);
-            if(matches) {
-                // Replace the {{ .. }} with whatever it's supposed to be
-                getData(null, matches[0], pageData, function(err, val) {
-                    if(err) {
-                        cb(err);
-                    } else {
-                        f = f.replace(matches[0], val);
-                        replace(f, matches);
-                    }
-                });
-            } else {
-                finish(null, f);
-            }
-        }
 
         if(err) {
             cb(err);
@@ -300,16 +284,11 @@ function renderList(instructions, pageData, cb) {
                         var i = 0, final_render = '', completed = 0;
                         // With each row returned we need to...
                         result.rows.forEach(function(row) {
-                            // Render the content through the specified template...
-                            replace(template, row.doc, function(err, rendered_view) {
-                                // Then render that into the list element...
-                                renderListElement(i++, template, rendered, row.doc, function(rendered_list_element) {
-                                    // Then return the concatted list of rendered items
-                                    final_render += rendered_list_element;
-                                    if(++completed == result.total_rows) {
-                                        cb(null, final_render);
-                                    }
-                                });
+                            renderListElement(i++, template, listData.element, row.doc, function(rendered_list_element) {
+                                final_render += rendered_list_element;
+                                if(++completed == result.total_rows) {
+                                    cb(null, final_render);
+                                }
                             });
                         });
                     }
@@ -322,9 +301,32 @@ function renderList(instructions, pageData, cb) {
 }
 
 // Render the {{element}} aspect of a list
-function renderListElement(index, list_template, rendered_content, elementData, cb) {
-    // TODO: Here is where we will need to parse things like even, odd, classes, etc, probalby in a helper function
-    cb(null, list_template.replace('{{child}}', rendered_content));
+function renderListElement(index, view_template, element_template, elementData, cb) {
+
+    function replace(f, pageData, finish) {
+        var matches = f.match(modelReplaces);
+        if(matches) {
+            // Replace the {{ .. }} with whatever it's supposed to be
+            getData(null, matches[0], pageData, function(err, val) {
+                if(err) {
+                    cb(err);
+                } else {
+                    f = f.replace(matches[0], val);
+                    replace(f, matches);
+                }
+            });
+        } else {
+            finish(null, f);
+        }
+    }
+
+    // Render the content through the specified template...
+    replace(element_template, elementData, function(err, rendered_content) {
+        // Then render that into the list element...
+
+        // TODO: Here is where we will need to parse things like even, odd, classes, etc, probalby in a helper function
+        cb(null, element_template.replace('{{child}}', '<span class="edit_list_item" id="'+elementData._id+'">'+rendered_content+'</span>'));
+    });
 }
 
 function parseListView(view, cb) {
@@ -399,11 +401,12 @@ function removeListPage(req, res) {
 }
 
 function getListView(req, res) {
+    //renderListElement(index, view_template, element_template, elementData, cb) {
 	getOrCreate(sanitizeUrl(req.url)+req.body.view, req.body.view, function(err, obj) {
 		if(err) {
 			res.send({status:'failure', message:err});
 		} else {
-			serveTemplate(sanitizeUrl(req.url), obj, function(err, parsed) {
+			parseTemplate(sanitizeUrl(req.url), obj, false, function(err, parsed) {
 				if(err) {
 					res.send({status:'failure', message:err});
 				} else {

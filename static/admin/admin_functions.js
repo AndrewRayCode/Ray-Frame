@@ -54,6 +54,7 @@ function listClick(elem) {
 function viewSelect(evt) {
     var t = $(evt.target);
 	if(!t.hasClass('list_views')) {
+        //renderListElement(index, view_template, element_template, elementData, cb) {
 		$.post('/getListView',{view: t.text()}, function(data) {
             if(data.status == 'success') {
                 currentEditor.viewList.remove();
