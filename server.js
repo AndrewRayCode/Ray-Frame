@@ -67,10 +67,11 @@ couch.exists(function(err, exists) {
 
 // TODO: This all needs to be one entry point for simpler authentication
 server.post('/update', updateField);
+server.post('/updateList', updateList);
 server.post('/addListPage', addListPage);
 server.post('/removeListPage', removeListPage);
 server.post('/getTemplates', getTemplates);
-server.post('/getView', getView);
+server.post('/getListView', getListView);
 
 server.get(/.*/, function(req, res) {
 	var path = req.url.split('/'),
@@ -228,9 +229,11 @@ function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
 	replace(f);
 }
 
+// Get the data from an object and replace it into its proper plip, like {{ }}. Also handles includes
 function getData(urlObject, plip, pageData, cb) {
 	var instructions = getInstructions(plip);
 		val = pageData[instructions.field] || '';
+
 	// If this is an included file we need to start the parse chain all over again
 	if(instructions.include) {
 		var lookup = 'includes'+instructions.field;
@@ -260,13 +263,68 @@ function getData(urlObject, plip, pageData, cb) {
 
 function renderList(instructions, pageData, cb) {
     parseListView(instructions.list_view || 'list.html', function(err, listData) {
+        var items = pageData[instructions.field],
+            template_view = instructions.list_view || 'link.html';
+        
+        try {
+            template = fs.readFileSync('templates/'+template_view).toString();
+        } catch(e) {
+            cb('Error reading link template `'+template_view+'`: '+sys.inspect(e));
+        }
+
+        function replace(f, pageData, finish) {
+            var matches = f.match(modelReplaces);
+            if(matches) {
+                // Replace the {{ .. }} with whatever it's supposed to be
+                getData(null, matches[0], pageData, function(err, val) {
+                    if(err) {
+                        cb(err);
+                    } else {
+                        f = f.replace(matches[0], val);
+                        replace(f, matches);
+                    }
+                });
+            } else {
+                finish(null, f);
+            }
+        }
+
         if(err) {
             cb(err);
         } else {
-            var rendered_list = listData.start + 'hi' + listData.end;
-            cb(null, rendered_list);
+            if(items && items.length > 0) {
+                couch.bulkDocs({keys: items}, function(err, result) {
+                    if(err) {
+                        cb(err);
+                    } else {
+                        var i = 0, final_render = '', completed = 0;
+                        // With each row returned we need to...
+                        result.rows.forEach(function(row) {
+                            // Render the content through the specified template...
+                            replace(template, row.doc, function(err, rendered_view) {
+                                // Then render that into the list element...
+                                renderListElement(i++, template, rendered, row.doc, function(rendered_list_element) {
+                                    // Then return the concatted list of rendered items
+                                    final_render += rendered_list_element;
+                                    if(++completed == result.total_rows) {
+                                        cb(null, final_render);
+                                    }
+                                });
+                            });
+                        });
+                    }
+                });
+            } else {
+                cb(null, listData.start + listData.end);
+            }
         }
     });
+}
+
+// Render the {{element}} aspect of a list
+function renderListElement(index, list_template, rendered_content, elementData, cb) {
+    // TODO: Here is where we will need to parse things like even, odd, classes, etc, probalby in a helper function
+    cb(null, list_template.replace('{{child}}', rendered_content));
 }
 
 function parseListView(view, cb) {
@@ -340,7 +398,7 @@ function removeListPage(req, res) {
 
 }
 
-function getView(req, res) {
+function getListView(req, res) {
 	getOrCreate(sanitizeUrl(req.url)+req.body.view, req.body.view, function(err, obj) {
 		if(err) {
 			res.send({status:'failure', message:err});
@@ -383,6 +441,21 @@ function updateField(req, res) {
 				res.send({status:'failure', message:err});
 			} else {
 				res.send({status:'success', new_value:req.body.value});
+			}
+		});
+	});
+}
+
+function updateList(req, res) {
+	var parts = req.body.field.split(':');
+
+	couch.getDoc(parts[0], function(err, doc) {
+		doc[parts[1]] = req.body.value;
+		couch.saveDoc(doc._id, doc, function(err, dbres) {
+			if(err) {
+				res.send({status:'failure', message:err});
+			} else {
+				res.send({status:'success', rendered_item:req.body.value});
 			}
 		});
 	});

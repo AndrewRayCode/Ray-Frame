@@ -3,6 +3,7 @@ var hover = $('<a></a>').addClass('edit_btn'),
 	listHover = $('<a></a>').addClass('list_edit_btn'),
 	cancel = $('<a></a>').addClass('cancel_btn').click(cancelClick),
 	send = $('<a></a>').addClass('send_btn').click(sendClick),
+	updateList = $('<a></a>').addClass('list_update_btn').click(updateListClick),
 	currentEditor = {};
 	
 $(document).ready(function() {
@@ -53,10 +54,12 @@ function listClick(elem) {
 function viewSelect(evt) {
     var t = $(evt.target);
 	if(!t.hasClass('list_views')) {
-		$.post('/getView',{view: t.text()}, function(data) {
+		$.post('/getListView',{view: t.text()}, function(data) {
             if(data.status == 'success') {
                 currentEditor.viewList.remove();
                 wireUp(currentEditor.target.html(data.parsed));
+
+                currentEditor.send = updateList.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
             } else {
                 alert(data.status+': '+data.message);
             }
@@ -79,6 +82,18 @@ function editClick(elem) {
 function buildEditor(id) {
     id = '#'+id.replace(/:/g, '\\:');
 	currentEditor.input = $('<input></input>').attr('type', 'text').val($(id).html()).insertAfter($(id));
+}
+
+function updateListClick(evt) {
+    var t = $(evt.target);
+	$.post('/updateList', {field:currentEditor.target.attr('id'), value:currentEditor.input.val()}, function(data) {
+        if(data.status == 'success') {
+            currentEditor.target.html(data.new_value);
+            closeEdit(t.data('match'));
+        } else {
+            alert(data.status+': '+data.message);
+        }
+    });
 }
 
 function sendClick(evt) {
