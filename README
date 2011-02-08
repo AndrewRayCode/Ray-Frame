@@ -1,7 +1,18 @@
 Dependencies
+------------
+
+Clone these repositories and install them with npm install:
 
 express
 	https://github.com/visionmedia/express (5e0a80f227063fb7441a)
 node-couchdb
 	https://github.com/felixge/node-couchdb (713605b0589393c023e7)
 	NOTE: Also requries CouchDb. For Windows I suggest CouchIO http://www.couch.io/get
+
+How to start Ray-Frame
+----------------------
+You must have a CouchDB instance running to start. Simply run:
+
+> node server.js
+
+And then hit http://localhost:8080/ and you will see your test website! All of the code is currently in server.js
