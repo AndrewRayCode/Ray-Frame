@@ -277,13 +277,15 @@ function renderList(instructions, pageData, cb) {
 
             if(items && items.length > 0) {
                 // Get the documents in the items array
-                couch.bulkDocs({keys: items}, function(err, result) {
+                couch.allDocs({keys: items}, function(err, result) {
                     if(err) {
                         cb('Error with bulk document insert: '+sys.inspect(err));
                     } else {
+                        log.warn('we got ',result);
                         var i = 0, final_render = '', completed = 0;
                         // With each row returned we need to...
                         result.rows.forEach(function(row) {
+                            log.warn('row: ',row);
                             renderListElement(i++, template, listData, row.doc, function(err, rendered_list_element) {
                                 final_render += rendered_list_element;
                                 if(++completed == result.total_rows) {
@@ -312,7 +314,7 @@ function renderListElement(index, view_template, listData, elementData, cb) {
                     cb(err);
                 } else {
                     f = f.replace(matches[0], val);
-                    replace(f, matches);
+                    replace(f, pageData, finish);
                 }
             });
         } else {
