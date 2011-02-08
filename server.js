@@ -166,12 +166,17 @@ function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
             var instr = getInstructions(matches[0]);
             // Use special child directive to reference object this global wraps
             if(instr.field == 'child') {
-                if(!instr.attr) {
-                    f = f.replace(matches[0], child);
+                // If it has an attribute like child.title
+                if(instr.attr) {
+                    getData(urlObj, matches[0].replace('child.', ''), pageData, function(err, val) {
+                        f = f.replace(matches[0], val);
+                        replaceGlobal(f);
+                    });
+                // Otherwise this is where we put the child in the template
                 } else {
-                    f = f.replace(matches[0], pageData[instr.attr]);
+                    f = f.replace(matches[0], child);
+                    replaceGlobal(f);
                 }
-                replaceGlobal(f);
             } else {
                 getData(urlObj, matches[0], globalData, function(err, val) {
                     f = f.replace(matches[0], val);
@@ -240,20 +245,21 @@ function getData(urlObject, str, pageData, cb) {
 function getInstructions(plip) {
 	var raw = plip.substring(2, plip.length-2),
 		fields = raw.split(':'),
-        split = [];
-
-    if(['child', 'parent', 'root'].indexOf(fields[0]) != -1) {
+        include = false,
         split = fields[0].split('.');
+
+    //TODO: better way to identify {{template.html}} import
+    if(split[1] == 'html') {
+        include = true;
     }
 
 	return {
-		field: split[0] || fields[0],
+		field: fields[0],
 		raw: raw,
 		noEdit: fields.indexOf('noEdit') > -1 ? true : false,
-		//TODO: better way to identify {{template.html}} import
-		include: fields[0].indexOf('.html') > 0 ? true : false,
+		include: include,
 		list: fields[1] == 'list' ? true : false,
-        attr: split[1] || null
+        attr: !include && split[1] ? split[1] : null
 	};
 }
 
