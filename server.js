@@ -169,8 +169,13 @@ function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
                 // If it has an attribute like child.title
                 if(instr.attr) {
                     getData(urlObj, matches[0].replace('child.', ''), pageData, function(err, val) {
-                        f = f.replace(matches[0], val);
-                        replaceGlobal(f);
+                        // TODO: Man, you know what, I'd rather just throw this junk, this doesn't feel DRY
+                        if(err) {
+                            cb(err);
+                        } else {
+                            f = f.replace(matches[0], val);
+                            replaceGlobal(f);
+                        }
                     });
                 // Otherwise this is where we put the child in the template
                 } else {
@@ -179,8 +184,12 @@ function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
                 }
             } else {
                 getData(urlObj, matches[0], globalData, function(err, val) {
-                    f = f.replace(matches[0], val);
-                    replaceGlobal(f);
+                    if(err) {
+                        cb(err);
+                    } else {
+                        f = f.replace(matches[0], val);
+                        replaceGlobal(f);
+                    }
                 });
             }
         } else {
@@ -194,8 +203,12 @@ function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
 		if(matches) {
             // Replace the {{ .. }} with whatever it's supposed to be
 			getData(urlObj, matches[0], pageData, function(err, val) {
-				f = f.replace(matches[0], val);
-				replace(f, matches);
+                if(err) {
+                    cb(err);
+                } else {
+                    f = f.replace(matches[0], val);
+                    replace(f, matches);
+                }
 			});
         } else if(canHaveGlobal) {
             couch.getDoc('global', function(err, doc) {
@@ -215,8 +228,8 @@ function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
 	replace(f);
 }
 
-function getData(urlObject, str, pageData, cb) {
-	var instructions = getInstructions(str);
+function getData(urlObject, plip, pageData, cb) {
+	var instructions = getInstructions(plip);
 		val = pageData[instructions.field] || '';
 	// If this is an included file we need to start the parse chain all over again
 	if(instructions.include) {
@@ -229,16 +242,53 @@ function getData(urlObject, str, pageData, cb) {
 			}
 		});
 	} else if(isAdmin) {
+        var edit_id = pageData._id+':'+instructions.raw,
+            callback = function(err, val) {
+                cb(err, '<span class="edit_list" id="'+edit_id+'">'+val+'</span>');
+            };
 		if(instructions.list) {
-			cb(null, '<span class="edit_list" id="'+pageData._id+':'+instructions.raw+'">'+val+'</span>');
+            renderList(instructions, pageData, callback);
 		} else if(!instructions.noEdit) {
-			cb(null, '<span class="edit_me" id="'+pageData._id+':'+instructions.raw+'">'+val+'</span>');
+			cb(null, '<span class="edit_me" id="'+edit_id+'">'+val+'</span>');
 		} else {
 			cb(null, val);
 		}
 	} else {
 		cb(null, val);
 	}
+}
+
+function renderList(instructions, pageData, cb) {
+    parseListView(instructions.list_view || 'list.html', function(err, listData) {
+        if(err) {
+            cb(err);
+        } else {
+            var rendered_list = listData.start + 'hi' + listData.end;
+            cb(null, rendered_list);
+        }
+    });
+}
+
+function parseListView(view, cb) {
+    var f,
+        data = {},
+        elems = ['start', 'end', 'element'],
+        l = elems.length;
+    try {
+        f = fs.readFileSync('templates/'+view).toString();
+    } catch(e) {
+        cb('Error parsing list `'+view+': '+sys.inspect(e));
+    }
+    while(l--) {
+        var r = new RegExp('\\{\\{\\s*'+elems[l]+'\\s*\\}\\}\\s*(\\S+)\\s*\\{\\{\\s*/\\s*'+elems[l]+'\\s*\\}\\}'),
+            match = f.match(r);
+        if(!match) {
+            cb('Required field `'+elems[l]+'` not found in list view `'+view+'`');
+            break;
+        }
+        data[elems[l]] = match[1];
+    }
+    cb(null, data);
 }
 
 // Parse a "plip" which is anything in {{ }} on a template
@@ -251,9 +301,8 @@ function getInstructions(plip) {
             field: fields[0],
             raw: raw,
             noEdit: fields.indexOf('noEdit') > -1 ? true : false,
-            list: fields[1] == 'list' ? true : false,
+            list: fields[1] == 'list' ? true : false
         };
-
 
     //TODO: better way to identify {{template.html}} import
     if(split[1] == 'html') {
