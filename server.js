@@ -259,7 +259,9 @@ function getInstructions(plip) {
     if(split[1] == 'html') {
         conclusion.include = true;
     } else {
-        conclusion.attr = split[1] ? split[1] : null;
+        // Say if this has an attribute like {{child.attr}}
+        conclusion.attr = split[1] || null;
+
         // If this isn't an include it could have things like `view=a.html` or `type=blog`
         while(l--) {
             var s = fields[l].split('=');
@@ -351,6 +353,8 @@ function getOrCreate(path, template, cb) {
 			// TODO: Here we create the db entry even if the template file does not exist.
 			// We should check for it and error up there if it doesn't exist
 			couch.saveDoc(path, new_obj, function(err, added) {
+                new_obj._id = added.id;
+                new_obj.rev = added.rev;
 				cb(err, new_obj);
 			});
 		} else {
