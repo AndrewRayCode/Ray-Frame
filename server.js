@@ -23,7 +23,7 @@ couch.exists(function(err, exists) {
     function recreate() {
         couch.create(function(err) {
             if(err) {
-                log.error(sys.inspect(err));
+                log.error(err);
             } else {
                 log.info('Recreated database `rayframe`');
                 couch = couch_client.db('rayframe');
@@ -71,7 +71,7 @@ server.post('/updateList', updateList);
 server.post('/addListPage', addListPage);
 server.post('/removeListPage', removeListPage);
 server.post('/getTemplates', getTemplates);
-server.post('/getListView', getListView);
+server.post('/addListItem', addListItem);
 
 server.get(/.*/, function(req, res) {
 	var path = req.url.split('/'),
@@ -91,19 +91,19 @@ server.get(/.*/, function(req, res) {
         //db.view(design, view, [query], [cb])
         couch.getDoc(dbPath, function(err, urlObject) {
             if(err) {
-				log.error('Error fetching URL view `'+dbPath+'`: '+sys.inspect(err));
+				log.error('Error fetching URL view `'+dbPath+'`: ',err);
 				res.writeHead(500, {'Content-Type': 'text/html'});
 				res.end('Internal server errrrrrror');
             } else {
                 couch.getDoc(urlObject.reference, function(err, page) {
                     if(err) {
-                        log.error('!!! URL object found but no page data found ('+urlObject.reference+')!: '+sys.inspect(err));
+                        log.error('!!! URL object found but no page data found ('+urlObject.reference+')!: ',err);
                         res.writeHead(500, {'Content-Type': 'text/html'});
                         res.end('Internal server errrrrrror');
                     } else {
                         serveTemplate(urlObject, page, function(err, parsed) {
                             if(err) {
-                                log.error('Error serving template for `'+req.url+' (CouchDB key `'+dbPath+'`): '+sys.inspect(err));
+                                log.error('Error serving template for `'+req.url+' (CouchDB key `'+dbPath+'`): ',err);
                                 res.writeHead(500, {'Content-Type': 'text/html'});
                                 res.end('Internal server errrrrrror');
                             } else {
@@ -147,7 +147,7 @@ function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
 	try {
 		f = fs.readFileSync('templates/'+pageData.template).toString();
 	} catch(e) {
-		cb('Template not found for `'+sys.inspect(pageData)+'`: '+e);
+		cb('Template not found for `',pageData,'`: ',e);
 		return;
 	}
 
@@ -263,31 +263,31 @@ function getData(urlObject, plip, pageData, cb) {
 
 function renderList(instructions, pageData, cb) {
     parseListView(instructions.list_view || 'list.html', function(err, listData) {
-        var items = pageData[instructions.field],
-            template_view = instructions.list_view || 'link.html';
-        
-        try {
-            template = fs.readFileSync('templates/'+template_view).toString();
-        } catch(e) {
-            cb('Error reading link template `'+template_view+'`: '+sys.inspect(e));
-        }
-
-
         if(err) {
-            cb(err);
+            cb('Error parsing list view: ',err);
         } else {
+            var items = pageData[instructions.field],
+                template_view = instructions.list_view || 'link.html';
+            
+            try {
+                template = fs.readFileSync('templates/'+template_view).toString();
+            } catch(e) {
+                cb('Error reading link template `'+template_view+'`: ',e);
+            }
+
             if(items && items.length > 0) {
+                // Get the documents in the items array
                 couch.bulkDocs({keys: items}, function(err, result) {
                     if(err) {
-                        cb(err);
+                        cb('Error with bulk document insert: '+sys.inspect(err));
                     } else {
                         var i = 0, final_render = '', completed = 0;
                         // With each row returned we need to...
                         result.rows.forEach(function(row) {
-                            renderListElement(i++, template, listData.element, row.doc, function(rendered_list_element) {
+                            renderListElement(i++, template, listData, row.doc, function(err, rendered_list_element) {
                                 final_render += rendered_list_element;
                                 if(++completed == result.total_rows) {
-                                    cb(null, final_render);
+                                    cb(err, final_render);
                                 }
                             });
                         });
@@ -301,7 +301,7 @@ function renderList(instructions, pageData, cb) {
 }
 
 // Render the {{element}} aspect of a list
-function renderListElement(index, view_template, element_template, elementData, cb) {
+function renderListElement(index, view_template, listData, elementData, cb) {
 
     function replace(f, pageData, finish) {
         var matches = f.match(modelReplaces);
@@ -321,11 +321,11 @@ function renderListElement(index, view_template, element_template, elementData, 
     }
 
     // Render the content through the specified template...
-    replace(element_template, elementData, function(err, rendered_content) {
+    replace(view_template, elementData, function(err, rendered_content) {
         // Then render that into the list element...
 
         // TODO: Here is where we will need to parse things like even, odd, classes, etc, probalby in a helper function
-        cb(null, element_template.replace('{{child}}', '<span class="edit_list_item" id="'+elementData._id+'">'+rendered_content+'</span>'));
+        cb(null, listData.element.replace('{{child}}', '<span class="edit_list_item" id="'+elementData._id+'">'+rendered_content+'</span>'));
     });
 }
 
@@ -337,7 +337,7 @@ function parseListView(view, cb) {
     try {
         f = fs.readFileSync('templates/'+view).toString();
     } catch(e) {
-        cb('Error parsing list `'+view+': '+sys.inspect(e));
+        cb('Error parsing list `'+view+': ',e);
     }
     while(l--) {
         var r = new RegExp('\\{\\{\\s*'+elems[l]+'\\s*\\}\\}\\s*(\\S+)\\s*\\{\\{\\s*/\\s*'+elems[l]+'\\s*\\}\\}'),
@@ -400,21 +400,38 @@ function removeListPage(req, res) {
 
 }
 
-function getListView(req, res) {
-    //renderListElement(index, view_template, element_template, elementData, cb) {
-	getOrCreate(sanitizeUrl(req.url)+req.body.view, req.body.view, function(err, obj) {
-		if(err) {
-			res.send({status:'failure', message:err});
-		} else {
-			parseTemplate(sanitizeUrl(req.url), obj, false, function(err, parsed) {
-				if(err) {
-					res.send({status:'failure', message:err});
-				} else {
-					res.send({status:'success', parsed:parsed});
-				}
-			});
-		}
-	});
+function addListItem(req, res) {
+    //function renderList(instructions, pageData, cb) {
+    var doc_id = req.body.plip.substring(0, req.body.plip.indexOf(':')),
+        instructions = getInstructions('{{'+req.body.plip.replace(doc_id+':', '')+'}}');
+
+    // Save a temporary document in couch, let it create the key
+    couch.saveDoc({template: instructions.template}, function(err, saved) {
+        if(err) {
+            log.error('Error saving list item: ',err);
+            res.send({status:'failure', message:err});
+        } else {
+            // Get the document the list is on for context
+            couch.getDoc(doc_id, function(err, doc) {
+                if(err) {
+                    log.error('Error getting main doc from couch: ',err);
+                    res.send({status:'failure', message:err});
+                } else {
+                    // Update the list with new temporary document key
+                    doc[instructions.field] = [saved.id];
+
+                    renderList(instructions, doc, function(err, rendered) {
+                        if(err) {
+                            log.error('Error rendering list: ',err);
+                            res.send({status:'failure', message:err});
+                        } else {
+                            res.send({status:'success', parsed:rendered});
+                        }
+                    });
+                }
+            });
+        }
+    });
 }
 
 function getTemplates(req, res) {

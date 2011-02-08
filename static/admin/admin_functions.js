@@ -13,12 +13,15 @@ $(document).ready(function() {
 function wireUp(elem) {
     var pos;
     elem = $(elem);
+
+    // Edit buttons for fields
 	elem.find('.edit_me').each(function(i, item) {
         item = $(item);
         pos = item.css('border', '2px solid red').offset();
         hover.clone().css({top:pos.top, left:pos.left}).appendTo(document.body).data('match', item);
 	});
 
+    // Edit buttons for lists
 	elem.find('.edit_list').each(function(i, item) {
         item = $(item);
         pos = item.css('border', '2px solid brown').offset();
@@ -27,6 +30,7 @@ function wireUp(elem) {
 	return elem;
 }
 
+// Catch all body clicks and trigger functionality if needed
 function bodyClickHandler(evt) {
     var t = $(evt.target);
 	if(t.hasClass('edit_btn')) {
@@ -51,15 +55,17 @@ function listClick(elem) {
     });
 }
 
+// We selected a view from the list of available ones
 function viewSelect(evt) {
     var t = $(evt.target);
 	if(!t.hasClass('list_views')) {
-        //renderListElement(index, view_template, element_template, elementData, cb) {
-		$.post('/getListView',{view: t.text()}, function(data) {
+        // Tell the server our current list plip and the view we found. The server will return us a new one
+        $.post('/addListItem', {plip:currentEditor.target.attr('id'), view:t.text()}, function(data) {
             if(data.status == 'success') {
                 currentEditor.viewList.remove();
                 wireUp(currentEditor.target.html(data.parsed));
 
+                var pos = currentEditor.target.offset();
                 currentEditor.send = updateList.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
             } else {
                 alert(data.status+': '+data.message);
