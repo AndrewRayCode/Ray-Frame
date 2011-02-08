@@ -126,7 +126,7 @@ function runServer() {
 // Serve a template from cache or get new version
 function serveTemplate(urlObj, pageData, cb) {
 	// TODO: Right now we are forcing the recreation of the template from disk. Original plan was to store those parsed files in compiled/ directory. Look into this
-	parseTemplate(urlObj, pageData, cb);
+	parseTemplate(urlObj, pageData, true, cb);
     
 	//try {
 		//var f = fs.readFileSync('compiled/'+obj.template);
@@ -136,14 +136,12 @@ function serveTemplate(urlObj, pageData, cb) {
 	//}
 }
 
-    // Regex to find {{ stuff }}
-var modelReplaces = /\{\{\S+?\}\}/g,
-    // Regex to find {directive} TODO: This will match {{dammit}} as well
-    globalReplaces = /\{\S+?\}/g;
+// Regex to find {{ stuff }}
+var modelReplaces = /\{\{\S+?\}\}/g;
 
 // Put the template into compiled and return the parsed data
-function parseTemplate(urlObj, pageData, cb) {
-    var f, child;
+function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
+    var f, child, globalData;
     // First read the template from the templates directory
 	try {
 		f = fs.readFileSync('templates/'+pageData.template).toString();
@@ -162,17 +160,24 @@ function parseTemplate(urlObj, pageData, cb) {
     }
     // Function to handle a global object if we have one (think template with header, footer, etc)
     function replaceGlobal(f) {
-        var matches = f.match(globalReplaces);
+        var matches = f.match(modelReplaces);
         if(matches) {
             // Find out what we are trying to insert
-            var instr = getSpecial(matches[0]);
+            var instr = getInstructions(matches[0]);
             // Use special child directive to reference object this global wraps
             if(instr.field == 'child') {
-                f = f.replace(matches[0], child);
-            } else if(instr.attr) {
-                f = f.replace(matches[0], pageData[instr.attr]);
+                if(!instr.attr) {
+                    f = f.replace(matches[0], child);
+                } else {
+                    f = f.replace(matches[0], pageData[instr.attr]);
+                }
+                replaceGlobal(f);
+            } else {
+                getData(urlObj, matches[0], globalData, function(err, val) {
+                    f = f.replace(matches[0], val);
+                    replaceGlobal(f);
+                });
             }
-            replaceGlobal(f);
         } else {
             end(f);
         }
@@ -183,28 +188,31 @@ function parseTemplate(urlObj, pageData, cb) {
 		var matches = f.match(modelReplaces);
 		if(matches) {
             // Replace the {{ .. }} with whatever it's supposed to be
-			getData(pageData._id, matches[0], pageData, function(err, val) {
+			getData(urlObj, matches[0], pageData, function(err, val) {
 				f = f.replace(matches[0], val);
 				replace(f, matches);
 			});
-		} else {
-            couch.getDoc('global', function(err, globalDoc) {
-                if(globalDoc) {
+        } else if(canHaveGlobal) {
+            couch.getDoc('global', function(err, doc) {
+                if(doc) {
                     child = f;
-                    var g = fs.readFileSync('templates/'+globalDoc.template).toString();
+                    globalData = doc;
+                    var g = fs.readFileSync('templates/'+globalData.template).toString();
                     replaceGlobal(g);
                 } else {
-                    end();
+                    end(f);
                 }
             });
-		}
+		} else {
+            end(f);
+        }
 	}
 	replace(f);
 }
 
-function getData(url, str, obj, cb) {
+function getData(urlObject, str, pageData, cb) {
 	var instructions = getInstructions(str);
-		val = obj[instructions.field] || '';
+		val = pageData[instructions.field] || '';
 	// If this is an included file we need to start the parse chain all over again
 	if(instructions.include) {
 		var lookup = 'includes'+instructions.field;
@@ -212,14 +220,14 @@ function getData(url, str, obj, cb) {
 			if(err) {
 				cb(err);
 			} else {
-				serveTemplate(lookup, obj, cb);
+                parseTemplate(urlObject, obj, false, cb);
 			}
 		});
 	} else if(isAdmin) {
 		if(instructions.list) {
-			cb(null, '<span class="edit_list" id="'+url+':'+instructions.raw+'">'+val+'</span>');
+			cb(null, '<span class="edit_list" id="'+pageData._id+':'+instructions.raw+'">'+val+'</span>');
 		} else if(!instructions.noEdit) {
-			cb(null, '<span class="edit_me" id="'+url+':'+instructions.raw+'">'+val+'</span>');
+			cb(null, '<span class="edit_me" id="'+pageData._id+':'+instructions.raw+'">'+val+'</span>');
 		} else {
 			cb(null, val);
 		}
@@ -231,25 +239,22 @@ function getData(url, str, obj, cb) {
 // Parse a "plip" which is anything in {{ }} on a template
 function getInstructions(plip) {
 	var raw = plip.substring(2, plip.length-2),
-		fields = raw.split(':');
+		fields = raw.split(':'),
+        split = [];
+
+    if(['child', 'parent', 'root'].indexOf(fields[0]) != -1) {
+        split = fields[0].split('.');
+    }
+
 	return {
-		field: fields[0],
+		field: split[0] || fields[0],
 		raw: raw,
 		noEdit: fields.indexOf('noEdit') > -1 ? true : false,
 		//TODO: better way to identify {{template.html}} import
 		include: fields[0].indexOf('.html') > 0 ? true : false,
-		list: fields[1] == 'list' ? true : false
-	};
-}
-
-// Parse the instruction from {something}
-function getSpecial(instr) {
-    var field = instr.substring(1, instr.length-1),
-        split = field.split('.');
-    return {
-        field: field,
+		list: fields[1] == 'list' ? true : false,
         attr: split[1] || null
-    };
+	};
 }
 
 function guessContentType(file) {

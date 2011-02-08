@@ -1,14 +1,15 @@
 <html>
 	<head>
-		<title>{child.title}</title>
+        <title>{{child.title}}</title>
 	</head>
 	<body>
 		<div class="wrap">
+            {{header.html}}
             <div clas="intro">
                 Intro Message:
-                <span></span>
+                <span>{{message}}</span>
             </div>
-            {child}
+            {{child}}
 		</div>
 	</body>
 </html>
