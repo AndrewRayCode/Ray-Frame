@@ -245,22 +245,31 @@ function getData(urlObject, str, pageData, cb) {
 function getInstructions(plip) {
 	var raw = plip.substring(2, plip.length-2),
 		fields = raw.split(':'),
-        include = false,
-        split = fields[0].split('.');
+        l = fields.length,
+        split = fields[0].split('.'),
+        conclusion = {
+            field: fields[0],
+            raw: raw,
+            noEdit: fields.indexOf('noEdit') > -1 ? true : false,
+            list: fields[1] == 'list' ? true : false,
+        };
+
 
     //TODO: better way to identify {{template.html}} import
     if(split[1] == 'html') {
-        include = true;
+        conclusion.include = true;
+    } else {
+        conclusion.attr = split[1] ? split[1] : null;
+        // If this isn't an include it could have things like `view=a.html` or `type=blog`
+        while(l--) {
+            var s = fields[l].split('=');
+            if(s.length > 1) {
+                conclusion[s[0]] = s[1];
+            }
+        }
     }
 
-	return {
-		field: fields[0],
-		raw: raw,
-		noEdit: fields.indexOf('noEdit') > -1 ? true : false,
-		include: include,
-		list: fields[1] == 'list' ? true : false,
-        attr: !include && split[1] ? split[1] : null
-	};
+    return conclusion;
 }
 
 function guessContentType(file) {
