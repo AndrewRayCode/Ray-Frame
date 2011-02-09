@@ -1,7 +1,7 @@
 var http = require('http'),
 	sys = require('sys'),
 	redis = require('redis'),
-	couch_client = require('couchdb').createClient(5984, 'localhost'),
+	couch_client = require('../node-couchdb/index.js').createClient(5984, 'localhost'),
 	log = require('./lib/logger'),
 	fs = require('fs'),
 	path = require('path'),
@@ -277,11 +277,10 @@ function renderList(instructions, pageData, cb) {
 
             if(items && items.length > 0) {
                 // Get the documents in the items array
-                couch.allDocs({keys: items}, function(err, result) {
+                couch.getDocsByKey(items, function(err, result) {
                     if(err) {
                         cb('Error with bulk document insert: '+sys.inspect(err));
                     } else {
-                        log.warn('we got ',result);
                         var i = 0, final_render = '', completed = 0;
                         // With each row returned we need to...
                         result.rows.forEach(function(row) {
@@ -408,7 +407,7 @@ function addListItem(req, res) {
         instructions = getInstructions('{{'+req.body.plip.replace(doc_id+':', '')+'}}');
 
     // Save a temporary document in couch, let it create the key
-    couch.saveDoc({template: instructions.template}, function(err, saved) {
+    couch.saveDoc({template: req.body.view}, function(err, saved) {
         if(err) {
             log.error('Error saving list item: ',err);
             res.send({status:'failure', message:err});
