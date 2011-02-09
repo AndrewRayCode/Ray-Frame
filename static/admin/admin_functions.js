@@ -1,14 +1,15 @@
 var RayFrameUtils = function() {
     this.$ = jQuery.noConflict(true);
     this.post = function(url, data, cb) {
+        var send = {current_id: current_id, current_url_id: current_url_id};
         url = access_url + '/' + url;
         if(cb) {
-            this.$.post(url, data, cb);
+            // If we got a data object we will have cb
+            this.$.extend(send, data);
         } else {
-            // We didn't get {data} so data is cb
-            this.$.post(url, data);
+            cb = data;
         }
-
+        this.$.post(url, send, cb);
     };
 };
 var RayFrame = new RayFrameUtils();

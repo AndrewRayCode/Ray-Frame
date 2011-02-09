@@ -1,5 +1,8 @@
 var sys    = require('sys'),
-	log = require('./lib/logger'),
+    log = require('./lib/logger'),
+    fs = require('fs'),
+    couch_client = require('../node-couchdb/index.js').createClient(5984, 'localhost'),
+    couch = couch_client.db('rayframe'),
     access_functions = module.exports;
 
 // These functions, currently wired up to post methods in sever.js, are access / update functions accessible from the website URL. The syntax is such:
@@ -16,7 +19,7 @@ exports.functions = {
         addListItem: function(req, res, pageData, urlData, couch) {
             //renderList: function(instructions, pageData, cb, pageData, urlData) {
             var doc_id = req.body.plip.substring(0, req.body.plip.indexOf(':')),
-                instructions = getInstructions('{{'+req.body.plip.replace(doc_id+':', '')+'}}');
+                instructions = templater.getInstructions('{{'+req.body.plip.replace(doc_id+':', '')+'}}');
 
             // Save a temporary document in couch, let it create the key
             couch.saveDoc({template: req.body.view}, function(err, saved) {
@@ -33,7 +36,7 @@ exports.functions = {
                             // Update the list with new temporary document key
                             doc[instructions.field] = [saved.id];
 
-                            renderList(instructions, null, doc, function(err, rendered) {
+                            templater.renderList(instructions, null, doc, function(err, rendered) {
                                 if(err) {
                                     log.error('Error rendering list: ',err);
                                     res.send({status:'failure', message:err});
