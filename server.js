@@ -79,7 +79,7 @@ ROLES.forEach(function(item) {
         server.post(ACCESS_PREFIX+'/'+funcName, function(req, res) {
             // TODO: Determine authenticaiton here. Session / cookie based? All higher level roles have access to lower level roles
             if(isAdmin) {
-                couch.getDocsByKey([req.body.current_id, req.body.curent_url_id], function(err, result) {
+                couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
                     funcs[funcName](req, res, result.rows[0], result.rows[1], couch);
                 });
             }

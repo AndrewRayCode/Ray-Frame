@@ -1,6 +1,7 @@
 var sys    = require('sys'),
     log = require('./lib/logger'),
     fs = require('fs'),
+    templater = require('./lib/templater'),
     couch_client = require('../node-couchdb/index.js').createClient(5984, 'localhost'),
     couch = couch_client.db('rayframe'),
     access_functions = module.exports;
@@ -17,7 +18,6 @@ exports.functions = {
 
         },
         addListItem: function(req, res, pageData, urlData, couch) {
-            //renderList: function(instructions, pageData, cb, pageData, urlData) {
             var doc_id = req.body.plip.substring(0, req.body.plip.indexOf(':')),
                 instructions = templater.getInstructions('{{'+req.body.plip.replace(doc_id+':', '')+'}}');
 
@@ -36,7 +36,7 @@ exports.functions = {
                             // Update the list with new temporary document key
                             doc[instructions.field] = [saved.id];
 
-                            templater.renderList(instructions, null, doc, function(err, rendered) {
+                            templater.renderList(instructions, urlData, doc, function(err, rendered) {
                                 if(err) {
                                     log.error('Error rendering list: ',err);
                                     res.send({status:'failure', message:err});
