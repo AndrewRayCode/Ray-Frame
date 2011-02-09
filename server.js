@@ -3,9 +3,11 @@ var http = require('http'),
 	redis = require('redis'),
 	couch_client = require('../node-couchdb/index.js').createClient(5984, 'localhost'),
 	log = require('./lib/logger'),
+	utils = require('./lib/utils'),
 	fs = require('fs'),
 	path = require('path'),
 	express = require('express'),
+    accessors = require('./access_functions'),
 	isAdmin = 1, // TODO: Authentication with login form, maybe user level permissions
 	adminFiles = '<script src="/static/admin/jquery-1.5.min.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />';
 
@@ -46,7 +48,7 @@ couch.exists(function(err, exists) {
                         // Bulkdocs takes _id, not key
                         {_id:'root', template:'index.html', title:'hello'}, // root is special case. Let couch name other keys for page objects
                         {_id:'global', template:'global.html'}, // another by convention
-                        {_id:sanitizeUrl('/'), reference:'root', chain:[]}]}, // TODO: Should URLs get their own database, or view?
+                        {_id:utils.sanitizeUrl('/'), reference:'root', chain:[]}]}, // TODO: Should URLs get their own database, or view?
                         function(err) {
                             log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
                             runServer();
@@ -64,23 +66,41 @@ couch.exists(function(err, exists) {
     }
 });
 
+// TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
+var ROLES = ['admin'],
+    ACCESS_PREFIX = '/access'; // Change for one more quip of security
 
-// TODO: This all needs to be one entry point for simpler authentication
-server.post('/update', updateField);
-server.post('/updateList', updateList);
-server.post('/addListPage', addListPage);
-server.post('/removeListPage', removeListPage);
-server.post('/getTemplates', getTemplates);
-server.post('/addListItem', addListItem);
+// Set up each external access function as a post with express
+ROLES.forEach(function(item) {
+    var funcs = accessors.functions[item];
+
+    function createPost(funcName) {
+        server.post(ACCESS_PREFIX+'/'+funcName, function(req, res) {
+            // TODO: Determine authenticaiton here. Session / cookie based? All higher level roles have access to lower level roles
+            if(isAdmin) {
+                couch.getDocsByKey([req.body.current_id, req.body.curent_url_id], function(err, result) {
+                    funcs[funcName](req, res, result.rows[0], result.rows[1], couch);
+                });
+            }
+        });
+    };
+
+    // Call closure function on every function for this role
+    if(funcs) {
+        for(var funcName in funcs) {
+            createPost(funcName);
+        }
+    }
+});
 
 server.get(/.*/, function(req, res) {
-	var path = req.url.split('/'),
-		dbPath = sanitizeUrl(req.url);
+	var urlPath = req.url.split('/'),
+		dbPath = utils.sanitizeUrl(req.url);
 
     // Static file handling
-	if(path[1] == 'static') {
+	if(urlPath[1] == 'static') {
 		try {
-			res.writeHead(200, {'Content-Type': guessContentType(req.url)});
+			res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
 			// TODO: readFileSync to avoid callback nonsense, but it's unavoidable, so make non-sync
 			res.end(fs.readFileSync(req.url.substring(1)));
 		} catch(e) {
@@ -154,7 +174,8 @@ function parseTemplate(urlObj, pageData, canHaveGlobal, cb) {
     // Append the admin files and save the compiled page
     function end(f) {
         if(isAdmin) {
-            f = f.replace('</body>', adminFiles+'</body>');
+            // Add admin files to front end, and pass variables about current ids for page context. TODO: This is shittacular on so many levels
+            f = f.replace('</body>', adminFiles+'<script>var current_id="'+pageData._id+'", current_url_id="'+urlObj._id+'", access_url="'+ACCESS_PREFIX+'";</script></body>');
         }
         fs.writeFileSync('compiled/'+urlObj._id, f);
         cb(null, f);
@@ -234,8 +255,11 @@ function getData(urlObject, plip, pageData, cb) {
 	var instructions = getInstructions(plip);
 		val = pageData[instructions.field] || '';
 
+    // URL is a special magical case, it should become the URL of the item
+    if(instructions.field == 'url') {
+        cb(null, utils.unsanitizeUrl(urlObject._id, pageData.title));
 	// If this is an included file we need to start the parse chain all over again
-	if(instructions.include) {
+    } else if(instructions.include) {
 		var lookup = 'includes'+instructions.field;
 		getOrCreate(lookup, instructions.field, function(err, obj) {
 			if(err) {
@@ -250,7 +274,7 @@ function getData(urlObject, plip, pageData, cb) {
                 cb(err, '<span class="edit_list" id="'+edit_id+'">'+val+'</span>');
             };
 		if(instructions.list) {
-            renderList(instructions, pageData, callback);
+            renderList(instructions, urlObject, pageData, callback);
 		} else if(!instructions.noEdit) {
 			cb(null, '<span class="edit_me" id="'+edit_id+'">'+val+'</span>');
 		} else {
@@ -261,7 +285,7 @@ function getData(urlObject, plip, pageData, cb) {
 	}
 }
 
-function renderList(instructions, pageData, cb) {
+function renderList(instructions, urlObj, pageData, cb) {
     parseListView(instructions.list_view || 'list.html', function(err, listData) {
         if(err) {
             cb('Error parsing list view: ',err);
@@ -277,6 +301,7 @@ function renderList(instructions, pageData, cb) {
 
             if(items && items.length > 0) {
                 // Get the documents in the items array
+                // TODO: _all_docs with keys still returns total_rows: total docs in database. Is this really the method I want?
                 couch.getDocsByKey(items, function(err, result) {
                     if(err) {
                         cb('Error with bulk document insert: '+sys.inspect(err));
@@ -284,10 +309,9 @@ function renderList(instructions, pageData, cb) {
                         var i = 0, final_render = '', completed = 0;
                         // With each row returned we need to...
                         result.rows.forEach(function(row) {
-                            log.warn('row: ',row);
-                            renderListElement(i++, template, listData, row.doc, function(err, rendered_list_element) {
+                            renderListElement(i++, urlObj, template, listData, row.doc, function(err, rendered_list_element) {
                                 final_render += rendered_list_element;
-                                if(++completed == result.total_rows) {
+                                if(++completed == items.length) {
                                     cb(err, final_render);
                                 }
                             });
@@ -302,13 +326,13 @@ function renderList(instructions, pageData, cb) {
 }
 
 // Render the {{element}} aspect of a list
-function renderListElement(index, view_template, listData, elementData, cb) {
+function renderListElement(index, urlObj, view_template, listData, elementData, cb) {
 
     function replace(f, pageData, finish) {
         var matches = f.match(modelReplaces);
         if(matches) {
             // Replace the {{ .. }} with whatever it's supposed to be
-            getData(null, matches[0], pageData, function(err, val) {
+            getData(urlObj, matches[0], pageData, function(err, val) {
                 if(err) {
                     cb(err);
                 } else {
@@ -382,110 +406,6 @@ function getInstructions(plip) {
     }
 
     return conclusion;
-}
-
-function guessContentType(file) {
-	var ext = path.extname(file);
-	if(ext == '.css') {
-		return 'text/css';
-	} else if(ext == '.js') {
-		return 'text/javascript';
-	}
-}
-
-function addListPage(req, res) {
-
-}
-
-function removeListPage(req, res) {
-
-}
-
-function addListItem(req, res) {
-    //function renderList(instructions, pageData, cb) {
-    var doc_id = req.body.plip.substring(0, req.body.plip.indexOf(':')),
-        instructions = getInstructions('{{'+req.body.plip.replace(doc_id+':', '')+'}}');
-
-    // Save a temporary document in couch, let it create the key
-    couch.saveDoc({template: req.body.view}, function(err, saved) {
-        if(err) {
-            log.error('Error saving list item: ',err);
-            res.send({status:'failure', message:err});
-        } else {
-            // Get the document the list is on for context
-            couch.getDoc(doc_id, function(err, doc) {
-                if(err) {
-                    log.error('Error getting main doc from couch: ',err);
-                    res.send({status:'failure', message:err});
-                } else {
-                    // Update the list with new temporary document key
-                    doc[instructions.field] = [saved.id];
-
-                    renderList(instructions, doc, function(err, rendered) {
-                        if(err) {
-                            log.error('Error rendering list: ',err);
-                            res.send({status:'failure', message:err});
-                        } else {
-                            res.send({status:'success', parsed:rendered});
-                        }
-                    });
-                }
-            });
-        }
-    });
-}
-
-function getTemplates(req, res) {
-	fs.readdir('templates/', function(err, files) {
-		if(err) {
-			res.send({status:'failure', message:err.message});
-		} else {
-			var clean = [];
-			// Filter out VIM swap files for example
-			for(var x=0; x<files.length; x++) {
-				if(/\.html$/.test(files[x])) {
-					clean.push(files[x]);
-				}
-			}
-			res.send({status:'success', templates:clean});
-		}
-	});
-}
-
-function updateField(req, res) {
-	var parts = req.body.field.split(':');
-
-	couch.getDoc(parts[0], function(err, doc) {
-		doc[parts[1]] = req.body.value;
-		couch.saveDoc(doc._id, doc, function(err, dbres) {
-			if(err) {
-				res.send({status:'failure', message:err});
-			} else {
-				res.send({status:'success', new_value:req.body.value});
-			}
-		});
-	});
-}
-
-function updateList(req, res) {
-	var parts = req.body.field.split(':');
-
-	couch.getDoc(parts[0], function(err, doc) {
-		doc[parts[1]] = req.body.value;
-		couch.saveDoc(doc._id, doc, function(err, dbres) {
-			if(err) {
-				res.send({status:'failure', message:err});
-			} else {
-				res.send({status:'success', rendered_item:req.body.value});
-			}
-		});
-	});
-}
-
-// Couch can't handle `/` in keys, so relace with `~`
-function sanitizeUrl(str) {
-    // Never have leading or trailing `.`s, except homepage which is just '~'
-    return str.replace(/\//g, '~').replace(/(.+)~$/, '$1').replace(/^~(.+)/, '$1');
 }
 
 function getOrCreate(path, template, cb) {
