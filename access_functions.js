@@ -2,6 +2,9 @@ var sys    = require('sys'),
 	log = require('./lib/logger'),
     access_functions = module.exports;
 
+// These functions, currently wired up to post methods in sever.js, are access / update functions accessible from the website URL. The syntax is such:
+// { role: {functions_available_to_that_role}}
+// This sets up a chain of security. Note that if a role has access to a function, so does the role above that. It cascades
 exports.functions = {
     admin: {
         addListPage: function(req, res, pageData, urlData, couch) {

@@ -101,7 +101,7 @@ server.get(/.*/, function(req, res) {
 	if(urlPath[1] == 'static') {
 		try {
 			res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
-			// TODO: readFileSync to avoid callback nonsense, but it's unavoidable, so make non-sync
+			// TODO: readFileSync to avoid callback nonsense, but it's unavoidable, so make non-sync?
 			res.end(fs.readFileSync(req.url.substring(1)));
 		} catch(e) {
 			res.writeHead(404, {'Content-Type': 'text/html'});
