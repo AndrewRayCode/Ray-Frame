@@ -18,8 +18,7 @@ exports.functions = {
 
         },
         addListItem: function(req, res, pageData, urlData, couch) {
-            var doc_id = req.body.plip.substring(0, req.body.plip.indexOf(':')),
-                instructions = templater.getInstructions('{{'+req.body.plip.replace(doc_id+':', '')+'}}');
+            var instructions = templater.getInstructions(req.body.plip);
 
             // Save a temporary document in couch, let it create the key
             couch.saveDoc({template: req.body.view}, function(err, saved) {
@@ -28,7 +27,7 @@ exports.functions = {
                     res.send({status:'failure', message:err});
                 } else {
                     // Get the document the list is on for context
-                    couch.getDoc(doc_id, function(err, doc) {
+                    couch.getDoc(instructions.doc_id, function(err, doc) {
                         if(err) {
                             log.error('Error getting main doc from couch: ',err);
                             res.send({status:'failure', message:err});

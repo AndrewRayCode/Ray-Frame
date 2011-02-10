@@ -23,7 +23,8 @@ var RayFrame = new RayFrameUtils();
         cancel = RayFrame.$('<a></a>').addClass('cancel_btn').click(cancelClick),
         send = RayFrame.$('<a></a>').addClass('send_btn').click(sendClick),
         updateList = RayFrame.$('<a></a>').addClass('list_update_btn').click(updateListClick),
-        currentEditor = {};
+        currentEditor = {},
+        editButtons = {};
         
     RayFrame.$(document).ready(function() {
         wireUp(document.body).click(bodyClickHandler);
@@ -41,7 +42,7 @@ var RayFrame = new RayFrameUtils();
         elem.find('.edit_me').each(function(i, item) {
             item = RayFrame.$(item);
             pos = item.css('border', '2px solid red').offset();
-            hover.clone().css({top:pos.top, left:pos.left}).appendTo(document.body).data('match', item);
+            editButtons[item.attr('id')] = hover.clone().css({top:pos.top, left:pos.left}).appendTo(document.body).data('match', item);
         });
 
         // Edit buttons for lists
@@ -87,12 +88,23 @@ var RayFrame = new RayFrameUtils();
                 if(data.status == 'success') {
                     currentEditor.viewList.remove();
                     wireUp(currentEditor.target.html(data.result));
-                    if(data.result.indexOf('a')) {
-                        
+
+                    var matches = currentEditor.target.find('.edit_me'), l = matches.length;
+                    while(l--) {
+                        instr = RayFrame.Transients.getInstructions(RayFrame.$(matches[l]).attr('id'));
+                        console.log('we got ',instr);
+                        if(instr.field == 'title') {
+                            editButtons[instr.raw].trigger('click');
+                            break;
+                        }
+                    }
+                    if(l == -1) {
+                        currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').val(RayFrame.$(id).html()).insertAfter(RayFrame.$(id)).click(function(e){e.preventDefault();});
                     }
 
-                    var pos = currentEditor.target.offset();
-                    currentEditor.send = updateList.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
+                    // TODO: This is for if we aren't actually adding a new linkable object in the datablaze
+                    //var pos = currentEditor.target.offset();
+                    //currentEditor.send = updateList.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
                 } else {
                     alert(data.status+': '+data.message);
                 }
