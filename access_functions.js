@@ -57,59 +57,72 @@ exports.functions = {
             var list_instr = templater.getInstructions(req.body.list_plip),
                 item_instr = templater.getInstructions(req.body.item_plip);
 
-            // Update the current document's list with the new id
-            var arr = pageData[list_instr.field];
-            pageData[list_instr.field] = arr && arr.length ? arr.cocat(item_instr.doc_id) : [item_instr.doc_id];
+            function beginUpdate(pageData) {
+                // Update the current document's list with the new id
+                var arr = pageData[list_instr.field];
+                pageData[list_instr.field] = arr && arr.length ? arr.concat(item_instr.doc_id) : [item_instr.doc_id];
 
-            // Get the stub item in the list to update its title field
-            couch.getDoc(item_instr.doc_id, function(err, docToAdd) {
-                // Update the title field of the item in the list
-                docToAdd.title = req.body.title;
+                // Get the stub item in the list to update its title field
+                couch.getDoc(item_instr.doc_id, function(err, docToAdd) {
+                    // Update the title field of the item in the list
+                    docToAdd.title = req.body.title;
 
-                // urlData will come in as the url object for the item that has the list on it
-                function updateDocs(urlData) {
-                    // Now that we have the title we can generate the new public facing URL
-                    var newLiveUrl = utils.newUrlFromId(urlData._id, req.body.title);
+                    // urlData will come in as the url object for the item that has the list on it
+                    function updateDocs(urlData) {
+                        // Now that we have the title we can generate the new public facing URL
+                        var newLiveUrl = utils.newUrlFromId(urlData._id, req.body.title);
 
-                    // make a new url object for the new item to be added to the list
-                    var url = {
-                        // The database-safe new url
-                        _id: utils.sanitizeUrl(newLiveUrl),
-                        // Reference to the newly added item
-                        reference: item_instr.doc_id,
-                        // Copy the parent chain of url object ids and simply add the current id to the chain
-                        parents: urlData.parents.concat(urlData._id)
-                    };
+                        // make a new url object for the new item to be added to the list
+                        var url = {
+                            // The database-safe new url
+                            _id: utils.sanitizeUrl(newLiveUrl),
+                            // Reference to the newly added item
+                            reference: item_instr.doc_id,
+                            // Copy the parent chain of url object ids and simply add the current id to the chain
+                            parents: urlData.parents.concat(urlData._id)
+                        };
 
-                    // Save the parent, the new item, and the new url object
-                    couch.bulkDocs({docs: [pageData, docToAdd, url]}, function(err, result) {
-                        if(err) {
-                            res.send({status:'failure', message:err.message});
-                        } else {
-                            res.send({status:'success', new_url:newLiveUrl});
-                        }
-                    });
-                }
+                        // Save the parent, the new item, and the new url object
+                        couch.bulkDocs({docs: [pageData, docToAdd, url]}, function(err, result) {
+                            if(err) {
+                                res.send({status:'failure', message:err.message});
+                            } else {
+                                res.send({status:'success', new_url:newLiveUrl});
+                            }
+                        });
+                    }
 
-                // If we are editing a list embedded on the current page, wham, urlData is the url object we want to use
-                if(list_instr.doc_id == pageData._id) {
-                    updateDocs(urlData);
-                } else {
-                    // Otherwise this could be an included file or something, so the urlObject we have isn't for the item the list is on
-                    couch.view('master', 'url', {key:list_instr.doc_id}, function(err, result) {
-                        if(err) {
-                            res.send({status:'failure', message:err.message});
-                        } else if(result.rows.length < 1) {
-                            // No url found. Special case, like if we are updating a list on the global template that has no URL object. Then we use
-                            // the current url data
-                            updateDocs(urlData);
-                        } else {
-                            log.warn("WAHHOOO");
-                            updateDocs(result);
-                        }
-                    });
-                }
-            });
+                    // If we are editing a list embedded on the current page, wham, urlData is the url object we want to use
+                    if(list_instr.doc_id == pageData._id) {
+                        updateDocs(urlData);
+                    } else {
+                        // Otherwise this could be an included file or something, so the urlObject we have isn't for the item the list is on
+                        couch.view('master', 'url', {key:list_instr.doc_id}, function(err, result) {
+                            if(err) {
+                                res.send({status:'failure', message:err.message});
+                            } else if(result.rows.length < 1) {
+                                // No url found. Special case, like if we are updating a list on the global template that has no URL object. Then we use
+                                // the current url data
+                                updateDocs(urlData);
+                            } else {
+                                log.warn("WAHHOOO");
+                                updateDocs(result);
+                            }
+                        });
+                    }
+                });
+            }
+            if(list_instr.doc_id == pageData._id) {
+                beginUpdate(pageData);
+            } else {
+                couch.getDoc(list_instr.doc_id, function(err, correctPageData) {
+                    if(err) {
+                        res.send({status:'failure', message:err.message});
+                    } else {
+                        beginUpdate(correctPageData);
+                    }
+                });
+            }
         },
         getTemplates: function(req, res, pageData, urlData, couch) {
             // TODO: This would make a good utility function, "getTemplates" and/or "getTemplate" or similarly named
