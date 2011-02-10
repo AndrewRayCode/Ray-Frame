@@ -1,15 +1,23 @@
 Dependencies
 ------------
 
-Clone these repositories and install them with npm install:
-
 express
-	https://github.com/visionmedia/express (5e0a80f227063fb7441a)
+    URL: 
+        https://github.com/visionmedia/express (5e0a80f227063fb7441a)
+    Instructions:
+        Clone, checkout that commit, and install with npm install
+
 My fork of node-couchdb
-	https://github.com/DelvarWorld/node-couchdb
-    NOTE: You can see how I'm including it in server.js. For now it's just a relative reference. Sorry, you have to deal, and clone the repo to the same local path (put in same folder ray-frame is in).
+    URL:
+        https://github.com/DelvarWorld/node-couchdb
+
+    Instructions:
+        You can see how I'm including it in server.js. For now it's just a relative reference.
+        Sorry, you have to deal, and clone the repo to the same local path (put in same folder ray-frame is in).
+
 CouchDb
-    For Windows I suggest CouchIO http://www.couch.io/get
+    URL:
+        For Windows I suggest CouchIO http://www.couch.io/get
 
 How to start Ray-Frame
 ----------------------
@@ -18,3 +26,12 @@ You must have a CouchDB instance running to start. Simply run:
 > node server.js
 
 And then hit http://localhost:8080/ and you will see your test website! All of the code is currently in server.js
+
+
+
+Basic Technical Overview + Rules
+--------------------------------
+- I have a basic workflow diagram mapped out, I will add it to this file or the Wiki at some point
+- There are TODOs all over the code. Feel free to pick one and work on it
+- Any client to server communication should receive a JSON response with at minumum {status: (one of) ['failure', 'warning', 'success', 'processing']
+- All client-side JavaScript admin functionality goes on the RayFrame object
