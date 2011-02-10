@@ -41,7 +41,7 @@ exports.functions = {
                                     log.error('Error rendering list: ',err);
                                     res.send({status:'failure', message:err});
                                 } else {
-                                    res.send({status:'success', parsed:rendered});
+                                    res.send({status:'success', result:rendered});
                                 }
                             });
                         }

@@ -11,6 +11,7 @@ var RayFrameUtils = function() {
         }
         this.$.post(url, send, cb);
     };
+    this.Transients = {};
 };
 var RayFrame = new RayFrameUtils();
 
@@ -85,7 +86,10 @@ var RayFrame = new RayFrameUtils();
             RayFrame.post('addListItem', {plip:currentEditor.target.attr('id'), view:t.text()}, function(data) {
                 if(data.status == 'success') {
                     currentEditor.viewList.remove();
-                    wireUp(currentEditor.target.html(data.parsed));
+                    wireUp(currentEditor.target.html(data.result));
+                    if(data.result.indexOf('a')) {
+                        
+                    }
 
                     var pos = currentEditor.target.offset();
                     currentEditor.send = updateList.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
@@ -110,7 +114,7 @@ var RayFrame = new RayFrameUtils();
 
     function buildEditor(id) {
         id = '#'+id.replace(/:/g, '\\:');
-        currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').val(RayFrame.$(id).html()).insertAfter(RayFrame.$(id));
+        currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').val(RayFrame.$(id).html()).insertAfter(RayFrame.$(id)).click(function(e){e.preventDefault();});
     }
 
     function updateListClick(evt) {

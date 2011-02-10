@@ -94,6 +94,8 @@ ROLES.forEach(function(item) {
     }
 });
 
+templater.addTransientFunction('templater.getInstructions', 'templater.modelReplaces');
+
 server.get(/.*/, function(req, res) {
 	var urlPath = req.url.split('/'),
 		dbPath = utils.sanitizeUrl(req.url);
