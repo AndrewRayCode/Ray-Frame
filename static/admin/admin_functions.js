@@ -9,7 +9,13 @@ var RayFrameUtils = function() {
         } else {
             cb = data;
         }
-        this.$.post(url, send, cb);
+        this.$.post(url, send, function(data) {
+            if(data.status == 'success') {
+                cb(data);
+            } else {
+                alert(data.status+': '+data.message);
+            }
+        });
     };
     this.Transients = {};
 };
@@ -66,15 +72,11 @@ var RayFrame = new RayFrameUtils();
 
     function listClick(elem) {
         RayFrame.post('getTemplates', function(data) {
-            if(data.status == 'success') {
-                currentEditor.target = elem.data('match');
-                currentEditor.viewList = RayFrame.$('<div></div>').addClass('list_views').appendTo(document.body).click(viewSelect);
+            currentEditor.target = elem.data('match');
+            currentEditor.viewList = RayFrame.$('<div></div>').addClass('list_views').appendTo(document.body).click(viewSelect);
 
-                for(var x=0; x<data.templates.length; x++) {
-                    RayFrame.$('<div></div>').text(data.templates[x]).appendTo(currentEditor.viewList);
-                }
-            } else {
-                alert(data.status+': '+data.message);
+            for(var x=0; x<data.templates.length; x++) {
+                RayFrame.$('<div></div>').text(data.templates[x]).appendTo(currentEditor.viewList);
             }
         });
     }
@@ -85,31 +87,45 @@ var RayFrame = new RayFrameUtils();
         if(!t.hasClass('list_views')) {
             // Tell the server our current list plip and the view we found. The server will return us a new one
             RayFrame.post('addListItem', {plip:currentEditor.target.attr('id'), view:t.text()}, function(data) {
-                if(data.status == 'success') {
-                    currentEditor.viewList.remove();
-                    wireUp(currentEditor.target.html(data.result));
+                currentEditor.viewList.remove();
+                wireUp(currentEditor.target.html(data.result));
 
-                    var matches = currentEditor.target.find('.edit_me'), l = matches.length;
-                    while(l--) {
-                        instr = RayFrame.Transients.getInstructions(RayFrame.$(matches[l]).attr('id'));
-                        console.log('we got ',instr);
-                        if(instr.field == 'title') {
-                            editButtons[instr.raw].trigger('click');
-                            break;
-                        }
+                // Save the list item, keep target as the list we are adding to
+                currentEditor.listItem = currentEditor.target.find('.edit_list_item:last');
+                var matches = currentEditor.listItem.find('.edit_me'), l = matches.length;
+                
+                while(l--) {
+                    instr = RayFrame.Transients.getInstructions(RayFrame.$(matches[l]).attr('id'));
+                    if(instr.field == 'title') {
+                        // This will get overwritten by the below trigger but we want to save the reference
+                        currentEditor.listEdit = currentEditor.target;
+                        // Trigger the edit event of the title field because when you add a new list item, title is the first thing you edit
+                        editButtons[instr.raw].trigger('click');
+                        // TODO: We have to rebind this if the user cancels!
+                        currentEditor.send.unbind('click').click(saveListItemClick);
+                        break;
                     }
-                    if(l == -1) {
-                        currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').val(RayFrame.$(id).html()).insertAfter(RayFrame.$(id)).click(function(e){e.preventDefault();});
-                    }
-
-                    // TODO: This is for if we aren't actually adding a new linkable object in the datablaze
-                    //var pos = currentEditor.target.offset();
-                    //currentEditor.send = updateList.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
-                } else {
-                    alert(data.status+': '+data.message);
                 }
+                if(l == -1) {
+                    // TODO: If this thing has no title field we just want to put in a text box
+                    currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').val(RayFrame.$(id).html()).insertAfter(RayFrame.$(id)).click(function(e){e.preventDefault();});
+                }
+
+                // TODO: This is for if we aren't actually adding a new linkable object in the datablaze
+                //var pos = currentEditor.target.offset();
+                //currentEditor.send = updateList.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
             });
         }
+    }
+
+    function saveListItemClick(evt) {
+        RayFrame.post('saveListItem', {
+            list_plip: currentEditor.listEdit.attr('id'),
+            item_plip: currentEditor.target.attr('id'),
+            title: currentEditor.input.val()
+        }, function(data) {
+            window.location = data.new_url;
+        });
     }
 
     function editClick(elem) {
@@ -132,24 +148,16 @@ var RayFrame = new RayFrameUtils();
     function updateListClick(evt) {
         var t = RayFrame.$(evt.target);
         RayFrame.post('updateList', {field:currentEditor.target.attr('id'), value:currentEditor.input.val()}, function(data) {
-            if(data.status == 'success') {
-                currentEditor.target.html(data.new_value);
-                closeEdit(t.data('match'));
-            } else {
-                alert(data.status+': '+data.message);
-            }
+            currentEditor.target.html(data.new_value);
+            closeEdit(t.data('match'));
         });
     }
 
     function sendClick(evt) {
         var t = RayFrame.$(evt.target);
         RayFrame.post('update', {field:currentEditor.target.attr('id'), value:currentEditor.input.val()}, function(data) {
-            if(data.status == 'success') {
-                currentEditor.target.html(data.new_value);
-                closeEdit(t.data('match'));
-            } else {
-                alert(data.status+': '+data.message);
-            }
+            currentEditor.target.html(data.new_value);
+            closeEdit(t.data('match'));
         });
     }
 

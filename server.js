@@ -37,8 +37,8 @@ couch.exists(function(err, exists) {
                         // Not currently needed, but this is the syntax for a view save
                         'url':{
                             map: function(doc) {
-                                if(doc.url) {
-                                    emit(doc.url, doc.reference);
+                                if(doc.reference) {
+                                    emit(doc.reference, doc);
                                 }
                             }
                         }
@@ -49,7 +49,7 @@ couch.exists(function(err, exists) {
                         // Bulkdocs takes _id, not key
                         {_id:'root', template:'index.html', title:'hello'}, // root is special case. Let couch name other keys for page objects
                         {_id:'global', template:'global.html'}, // another by convention
-                        {_id:utils.sanitizeUrl('/'), reference:'root', chain:[]}]}, // TODO: Should URLs get their own database, or view?
+                        {_id:utils.sanitizeUrl('/'), reference:'root', parents:[]}]}, // TODO: Should URLs get their own database, or view?
                         function(err) {
                             log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
                             runServer();
@@ -80,7 +80,7 @@ ROLES.forEach(function(item) {
             // TODO: Determine authenticaiton here. Session / cookie based? All higher level roles have access to lower level roles
             if(isAdmin) {
                 couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
-                    funcs[funcName](req, res, result.rows[0], result.rows[1], couch);
+                    funcs[funcName](req, res, result.rows[0].doc, result.rows[1].doc, couch);
                 });
             }
         });
