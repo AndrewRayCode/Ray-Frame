@@ -3,9 +3,15 @@ Dependencies
 
 express
     URL: 
-        https://github.com/visionmedia/express (5e0a80f227063fb7441a)
+        https://github.com/visionmedia/express
     Instructions:
-        Clone, checkout that commit, and install with npm install
+        Clone and install with npm install
+
+nodeunit
+    URL:
+        https://github.com/caolan/nodeunit 
+    Instructions:
+        Same as above
 
 My fork of node-couchdb
     URL:
@@ -27,7 +33,9 @@ You must have a CouchDB instance running to start. Simply run:
 
 And then hit http://localhost:8080/ and you will see your test website! All of the code is currently in server.js
 
-
+How to run the tests
+--------------------
+nodeunit test/tests.js
 
 Basic Technical Overview + Rules
 --------------------------------
