@@ -125,20 +125,12 @@ exports.functions = {
             }
         },
         getTemplates: function(req, res, pageData, urlData, couch) {
-            // TODO: This would make a good utility function, "getTemplates" and/or "getTemplate" or similarly named
-            fs.readdir('templates/', function(err, files) {
+            templater.listTemplates(function(err, files) {
                 if(err) {
                     res.send({status:'failure', message:err.message});
-                } else {
-                    var clean = [];
-                    // Filter out VIM swap files for example
-                    for(var x=0; x<files.length; x++) {
-                        if(/\.html$/.test(files[x])) {
-                            clean.push(files[x]);
-                        }
-                    }
-                    res.send({status:'success', templates:clean});
+                    return;
                 }
+                res.send({status:'success', templates:files});
             });
         },
         update: function(req, res, pageData, urlData, couch) {
