@@ -144,6 +144,7 @@ var RayFrame = new RayFrameUtils();
             RayFrame.post('getField', {id: instrs.doc_id, field: instrs.field}, function(unRendered) {
                 original_element.html(unRendered.value);
                 //currentEditor.renderFunc = instrs.renderFunc;
+                buildEditor(original_element.attr('id'));
             });
         } else {
             buildEditor(original_element.attr('id'));
