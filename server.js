@@ -103,20 +103,30 @@ server.get(/.*/, function(req, res) {
     // Static file handling
 	if(urlPath[1] == 'static') {
 		try {
-			res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
-			// TODO: readFileSync to avoid callback nonsense, but it's unavoidable, so make non-sync?
-			res.end(fs.readFileSync(req.url.substring(1)));
+            fs.readFile(req.url.substring(1), function(err, data) {
+                if(err) {
+                    res.writeHead(404, {'Content-Type': 'text/html'});
+                    res.end('Todo: this should be some standardized 404 page' + e);
+                    return;
+                }
+                res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
+                res.end(data.toString());
+            });
 		} catch(e) {
-			res.writeHead(404, {'Content-Type': 'text/html'});
-			res.end('Todo: this should be some standardized 404 page' + e);
 		}
 	} else {
         //db.view(design, view, [query], [cb])
         couch.getDoc(dbPath, function(err, urlObject) {
             if(err) {
-				log.error('Error fetching URL view `'+dbPath+'`: ',err);
-				res.writeHead(500, {'Content-Type': 'text/html'});
-				res.end('Internal server errrrrrror');
+                if(err.error == 'not_found') {
+                    log.warn('Non-existant page was requested (404): `'+dbPath+'`: ',err);
+                    res.writeHead(404, {'Content-Type': 'text/html'});
+                    res.end('Todo: This should be some standardized 404 page');
+                } else {
+                    log.error('Error fetching URL view `'+dbPath+'`: ',err);
+                    res.writeHead(500, {'Content-Type': 'text/html'});
+                    res.end('Internal server errrrrrror');
+                }
             } else {
                 couch.getDoc(urlObject.reference, function(err, page) {
                     if(err) {
