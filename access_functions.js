@@ -113,7 +113,6 @@ exports.functions = {
                                 // the current url data
                                 updateDocs(urlData);
                             } else {
-                                log.warn("WAHHOOO");
                                 updateDocs(result);
                             }
                         });

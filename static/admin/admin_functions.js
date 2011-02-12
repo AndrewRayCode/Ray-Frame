@@ -143,6 +143,8 @@ var RayFrame = new RayFrameUtils();
         if(instrs.renderFunc) {
             RayFrame.post('getField', {id: instrs.doc_id, field: instrs.field}, function(unRendered) {
                 original_element.html(unRendered.value);
+                // we have the rendering function front end, but do we really need to use it? we need to go to back end to get original value
+                // anyway, unless I think of some way to render that out on load time...
                 //currentEditor.renderFunc = instrs.renderFunc;
                 buildEditor(original_element.attr('id'));
             });
