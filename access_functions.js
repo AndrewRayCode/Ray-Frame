@@ -12,11 +12,19 @@ var sys    = require('sys'),
 // This sets up a chain of security. Note that if a role has access to a function, so does the role above that. It cascades
 exports.functions = {
     admin: {
-        addListPage: function(req, res, pageData, urlData, couch) {
+        // TODO
+        removeListItem: function(req, res, pageData, urlData, couch) {
 
         },
-        removeListPage: function(req, res, pageData, urlData, couch) {
-
+        getField: function(req, res, pageData, urlData, couch) {
+            couch.getDoc(req.body.id, function(err, doc) {
+                if(err) {
+                    log.error('Error getting main doc from couch: ',err);
+                    res.send({status:'failure', message:err});
+                    return;
+                }
+                res.send({status:'success', value:doc[req.body.field]});
+            });
         },
         addListItem: function(req, res, pageData, urlData, couch) {
             var instructions = templater.getInstructions(req.body.plip);

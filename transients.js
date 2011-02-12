@@ -1,4 +1,5 @@
 var transients = module.exports,
+    utils = require('./lib/utils'),
     log = require('./lib/logger');
 
 exports.ellip = function(str) {

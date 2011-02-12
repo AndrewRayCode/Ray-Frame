@@ -129,15 +129,25 @@ var RayFrame = new RayFrameUtils();
     }
 
     function editClick(elem) {
+        var original_element = elem.data('match').css({display:'none'}),
+            pos = original_element.offset(),
+            id = original_element.attr('id'),
+            instrs = RayFrame.Transients.getInstructions(original_element.attr('id'));
+
         currentEditor.edit = elem.css({display: 'none'});
-        currentEditor.target = elem.data('match').css({display:'none'});
-        var pos = elem.data('match').offset();
+        currentEditor.target = original_element;
 
         currentEditor.cancel = cancel.css({display:'block', top:pos.top, left:pos.left}).appendTo(document.body);
         currentEditor.send = send.css({display:'block', top:pos.top, left:pos.left + 15}).appendTo(document.body);
 
-        elem.data('match').css({display:'none'});
-        buildEditor(elem.data('match').attr('id'));
+        if(instrs.renderFunc) {
+            RayFrame.post('getField', {id: instrs.doc_id, field: instrs.field}, function(unRendered) {
+                original_element.html(unRendered.value);
+                //currentEditor.renderFunc = instrs.renderFunc;
+            });
+        } else {
+            buildEditor(original_element.attr('id'));
+        }
     }
 
     function buildEditor(id) {
