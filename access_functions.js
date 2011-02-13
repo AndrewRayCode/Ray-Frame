@@ -26,6 +26,8 @@ exports.functions = {
                 res.send({status:'success', value:doc[req.body.field]});
             });
         },
+        // This is when the user clicks add on a list. We will save an object in the database that just has the new item's
+        // template on it. We won't create a URL object for it because it doesn't yet have a title.
         addListItem: function(req, res, pageData, urlData, couch) {
             var instructions = templater.getInstructions(req.body.plip);
 
@@ -50,7 +52,7 @@ exports.functions = {
                                 res.send({status:'failure', message:err});
                                 return;
                             }
-                            res.send({status:'success', result:rendered});
+                            res.send({status:'success', result:rendered, new_id: saved.id});
                         });
                     });
                 });

@@ -91,24 +91,20 @@ var RayFrame = new RayFrameUtils();
                 wireUp(currentEditor.target.html(data.result));
 
                 // Save the list item, keep target as the list we are adding to
-                currentEditor.listItem = currentEditor.target.find('.edit_list_item:last');
-                var matches = currentEditor.listItem.find('.edit_me'), l = matches.length;
+                currentEditor.listItem = RayFrame.$('#'+data.new_id);
+                var titleField = currentEditor.listItem.find('span[id^="'+data.new_id+':title"]');
                 
-                while(l--) {
-                    instr = RayFrame.Transients.getInstructions(RayFrame.$(matches[l]).attr('id'));
-                    if(instr.field == 'title') {
-                        // This will get overwritten by the below trigger but we want to save the reference
-                        currentEditor.listEdit = currentEditor.target;
-                        // Trigger the edit event of the title field because when you add a new list item, title is the first thing you edit
-                        editButtons[instr.raw].trigger('click');
-                        // TODO: We have to rebind this if the user cancels!
-                        currentEditor.send.unbind('click').click(saveListItemClick);
-                        break;
-                    }
-                }
-                if(l == -1) {
+                if(titleField.length) { 
+                    //instr = RayFrame.Transients.getInstructions(RayFrame.$(matches[l]).attr('id'));
+                    // This will get overwritten by the below trigger but we want to save the reference
+                    currentEditor.listEdit = currentEditor.target;
+                    // Trigger the edit event of the title field because when you add a new list item, title is the first thing you edit
+                    editButtons[titleField.attr('id')].trigger('click');
+                    // TODO: We have to rebind this if the user cancels!
+                    currentEditor.send.unbind('click').click(saveListItemClick);
+                } else {
                     // TODO: If this thing has no title field we just want to put in a text box
-                    currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').val(RayFrame.$(id).html()).insertAfter(RayFrame.$(id)).click(function(e){e.preventDefault();});
+                    currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').insertAfter(currentEditor.listItem).click(function(e){e.preventDefault();});
                 }
 
                 // TODO: This is for if we aren't actually adding a new linkable object in the datablaze
@@ -154,8 +150,17 @@ var RayFrame = new RayFrameUtils();
     }
 
     function buildEditor(id) {
-        id = '#'+id.replace(/:/g, '\\:');
-        currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').val(RayFrame.$(id).html()).insertAfter(RayFrame.$(id)).click(function(e){e.preventDefault();});
+        var found = RayFrame.$('#'+id.replace(/:/g, '\\:'));
+        currentEditor.input = RayFrame.$('<input></input>').attr('type', 'text').val(found.html()).insertAfter(found).click(function(e){
+            e.preventDefault();
+        }).focus().keydown(function(evt) {
+            if(evt.keyCode == 13) {
+                evt.preventDefault();
+                evt.stopPropagation();
+                currentEditor.send.trigger('click');
+                return false;
+            }
+        });
     }
 
     function updateListClick(evt) {
