@@ -3,7 +3,7 @@ var sys    = require('sys'),
     fs = require('fs'),
     templater = require('./lib/templater'),
     utils = require('./lib/utils'),
-    couch_client = require('../node-couchdb/index.js').createClient(5984, 'localhost'),
+    couch_client = require('../../node-couchdb/index.js').createClient(5984, 'localhost'),
     couch = couch_client.db('rayframe'),
     access_functions = module.exports;
 

@@ -1,23 +1,28 @@
 var templater = module.exports,
     log = require('./logger'),
     sys = require('sys'),
-    template_dir = 'templates/',
+    template_dir = '../user/templates/',
 	fs = require('fs'),
 	path = require('path'),
     transients = require('../transients'),
     utils = require('./utils'),
-	couch_client = require('../../node-couchdb/index.js').createClient(5984, 'localhost'),
+	couch_client = require('../../../node-couchdb/index.js').createClient(5984, 'localhost'),
     couch = couch_client.db('rayframe'),
 	adminFiles = '<script src="/static/admin/jquery-1.5.min.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />',
     transientFunctions = '',
     // TODO: oh god I am repeating myself from server.js, fix this shenanegins
-    ACCESS_PREFIX = '/access';
+    ACCESS_PREFIX = '/access',
+    theme;
 
 // Regex to find {{ stuff }}
 exports.modelReplaces = /\{\{\S+?\}\}/g;
 
 exports.setReferences = function(role) {
     isAdmin = role;
+};
+
+exports.setTheme = function(str) {
+    theme = str + '/';
 };
 
 // toString all the functions that we want to access on the front end
@@ -305,7 +310,7 @@ exports.getData = function(urlObject, plip, pageData, cb) {
 
 exports.readTemplate = function(name, cb) {
     name = name.substr(-5) == '.html' ? name : name + '.html';
-    fs.readFile(template_dir + name, function(err, file) {
+    fs.readFile(template_dir + theme + name, function(err, file) {
         if(err) {
             cb(err);
         } else{
@@ -319,7 +324,7 @@ exports.listTemplates = function(options, cb) {
         cb = options;
         options = {};
     }
-    fs.readdir(template_dir, function(err, files) {
+    utils.readDir(template_dir + theme, function(err, start, dirs, files) {
         if(err) {
             cb(err);
         } else {
@@ -327,7 +332,7 @@ exports.listTemplates = function(options, cb) {
             // Filter out VIM swap files for example
             for(var x=0; x<files.length; x++) {
                 // include everything (including say vim swap files) if specified
-                f = files[x];
+                f = path.basename(files[x]);
                 if(options.really_include_all || 
                     // Otherwise, we only want html files...
                     ((/\.html$/).test(f) && 
@@ -347,7 +352,7 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
     // First read the template from the templates directory
     templater.readTemplate(pageData.template, function(err, f) {
         if(err) {
-            cb('Template not found for `'+sys.inspect(pageData)+'`: '+e.message);
+            cb('Template not found for `'+sys.inspect(pageData)+'`: '+err.message);
             return;
         }
 

@@ -1,16 +1,16 @@
 var http = require('http'),
 	sys = require('sys'),
-	redis = require('redis'),
-	couch_client = require('../node-couchdb/index.js').createClient(5984, 'localhost'),
-	log = require('./lib/logger'),
-	utils = require('./lib/utils'),
-	templater = require('./lib/templater'),
 	fs = require('fs'),
 	path = require('path'),
+	log = require('./core/lib/logger'),
+	utils = require('./core/lib/utils'),
+	templater = require('./core/lib/templater'),
+    accessors = require('./core/access_functions'),
 	express = require('express'),
-    accessors = require('./access_functions'),
+	couch_client = require('../node-couchdb/index.js').createClient(5984, 'localhost'),
     // TODO: Authentication with login form, maybe user level permissions
-	isAdmin = 1;
+	isAdmin = 1,
+    theme = 'ray-frame';
 
 log.log_level = 'info';
 var server = express.createServer();
@@ -151,6 +151,7 @@ server.get(/.*/, function(req, res) {
 });
 
 function runServer() {
+    templater.setTheme(theme);
     var t = './transients.js';
     path.exists(t, function(ya) {
         if(ya) {
