@@ -414,10 +414,6 @@ exports.readTemplate = function(name, cb) {
 };
 
 exports.listAllThemeTemplates = function(cb) {
-    if(typeof options == 'function') {
-        cb = options;
-        options = {};
-    }
     utils.readDir(__dirname + '/' + themes_dir + theme + 'templates/', function(err, data) {
         if(err) {
             return cb(err);
@@ -433,23 +429,28 @@ exports.listAllThemeTemplates = function(cb) {
         }
         cb(null, templates);
     });
-}
+};
 
 exports.listTemplates = function(options, cb) {
-    var templates = [], f;
-    // Filter out VIM swap files for example
-    for(var x=0; x<files.length; x++) {
-        // include everything (including say vim swap files) if specified
-        f = path.basename(files[x]);
-        if(options.really_include_all || 
-            // Otherwise, we only want html files...
-            ((/\.html$/).test(f) && 
-            // And exclude convention named files like global by default
-            (options.include_all || (f != 'global.html')) && f != 'index.html')) {
-            templates.push(f);
-        }
+    if(typeof options == 'function') {
+        cb = options;
+        options = {};
     }
-    cb(null, templates);
+    templater.listAllThemeTemplates(function(err, files) {
+        var templates = [], f;
+        for(var x=0; x<files.length; x++) {
+            // include everything (including say vim swap files) if specified
+            f = path.basename(files[x]);
+            if(options.really_include_all || 
+                // Otherwise, we only want html files...
+                ((/\.html$/).test(f) && 
+                // And exclude convention named files like global by default
+                (options.include_all || (f != 'global.html')) && f != 'index.html')) {
+                templates.push(f);
+            }
+        }
+        cb(null, templates);
+    });
 };
 
 // Put the template into compiled and return the parsed data
