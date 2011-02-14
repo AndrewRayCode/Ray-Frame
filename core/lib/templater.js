@@ -1,7 +1,7 @@
 var templater = module.exports,
     log = require('./logger'),
     sys = require('sys'),
-    template_dir = '../../user/templates/themes/',
+    themes_dir = '../../user/themes/',
     template_links_dir = '/tmp/tlinks/',
 	fs = require('fs'),
 	path = require('path'),
@@ -45,6 +45,7 @@ exports.updateSymLinks = function(cb) {
             return;
         }
         var symlink_file = template_links_dir + path.basename(file);
+        //log.warn('symlinking ',file,' to ',symlink_file);
         fs.symlink(file, symlink_file, function(err, sts) {
             if(err && !hasErrored) {
                 hasErrored = true;
@@ -417,7 +418,7 @@ exports.listAllThemeTemplates = function(cb) {
         cb = options;
         options = {};
     }
-    utils.readDir(__dirname + '/' + template_dir + theme, function(err, data) {
+    utils.readDir(__dirname + '/' + themes_dir + theme + 'templates/', function(err, data) {
         if(err) {
             return cb(err);
         }

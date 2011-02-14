@@ -10,7 +10,10 @@ var http = require('http'),
 	couch_client = require('../node-couchdb/index.js').createClient(5984, 'localhost'),
     // TODO: Authentication with login form, maybe user level permissions
 	isAdmin = 1,
-    theme = 'ray-frame';
+    // TODO: This needs to be in config file, with roles and server port, etc
+    theme = 'ray-frame',
+    core_static = 'core/static/',
+    user_static = 'user/themes/'+theme+'/static/';
 
 log.log_level = 'info';
 var server = express.createServer();
@@ -101,14 +104,22 @@ server.get(/.*/, function(req, res) {
     // Static file handling
 	if(urlPath[1] == 'static') {
 		try {
-            fs.readFile(req.url.substring(1), function(err, data) {
+            var stp = req.url.replace('/static', '');
+            fs.readFile(user_static + stp, function(err, data) {
                 if(err) {
-                    log.warn('Non-existant static file was requested (404): `'+req.url+'`: ',err);
-                    res.writeHead(404, {'Content-Type': 'text/html'});
-                    return res.end('Todo: this should be some standardized 404 page');
+                    fs.readFile(core_static + stp, function(err, data) {
+                        if(err) {
+                            log.warn('Non-existant static file was requested (404): `'+req.url+'`: ',err);
+                            res.writeHead(404, {'Content-Type': 'text/html'});
+                            return res.end('Todo: this should be some standardized 404 page');
+                        }
+                        res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
+                        res.end(data.toString());
+                    });
+                } else {
+                    res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
+                    res.end(data.toString());
                 }
-                res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
-                res.end(data.toString());
             });
 		} catch(e) {
 		}
@@ -151,7 +162,10 @@ server.get(/.*/, function(req, res) {
 });
 
 function runServer() {
-    templater.setTheme(theme, function() {
+    templater.setTheme(theme, function(err) {
+        if(err) {
+            return log.error('Error setting theme!: ',err);
+        }
         var t = './transients.js';
         path.exists(t, function(ya) {
             if(ya) {
