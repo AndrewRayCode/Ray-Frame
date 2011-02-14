@@ -151,23 +151,24 @@ server.get(/.*/, function(req, res) {
 });
 
 function runServer() {
-    templater.setTheme(theme);
-    var t = './transients.js';
-    path.exists(t, function(ya) {
-        if(ya) {
-            var transients = require(t);
-            for(var x in transients) {
-                templater.addTransientFunction([x, transients[x]]);
+    templater.setTheme(theme, function() {
+        var t = './transients.js';
+        path.exists(t, function(ya) {
+            if(ya) {
+                var transients = require(t);
+                for(var x in transients) {
+                    templater.addTransientFunction([x, transients[x]]);
+                }
             }
-        }
-        for(var x in utils) {
-            templater.addTransientFunction([x, utils[x]]);
-        }
+            for(var x in utils) {
+                templater.addTransientFunction([x, utils[x]]);
+            }
 
-        templater.addTransientFunction('templater.getInstructions');
-        templater.setReferences(isAdmin);
-        server.listen(8080);
-        log.info('Server running!');
+            templater.addTransientFunction('templater.getInstructions');
+            templater.setReferences(isAdmin);
+            server.listen(8080);
+            log.info('Server running!');
+        });
     });
 }
 

@@ -1,7 +1,8 @@
 var templater = module.exports,
     log = require('./logger'),
     sys = require('sys'),
-    template_dir = '../user/templates/',
+    template_dir = '../../user/templates/themes/',
+    template_links_dir = '/tmp/tlinks/',
 	fs = require('fs'),
 	path = require('path'),
     transients = require('../transients'),
@@ -21,8 +22,81 @@ exports.setReferences = function(role) {
     isAdmin = role;
 };
 
-exports.setTheme = function(str) {
+exports.setTheme = function(str, cb) {
     theme = str + '/';
+    templater.updateSymLinks(function(err) {
+        cb(err);
+    });
+};
+
+exports.updateSymLinks = function(cb) {
+    var linked = 0,
+        total = 0,
+        hasErrored = false,
+        totalFilesToDelete = 0;
+        filesDeleted = 0;
+    function linkFile(file) {
+        if(hasErrored) {
+            return;
+        }
+        var symlink_file = template_links_dir + path.basename(file);
+        fs.symlink(file, symlink_file, function(err, sts) {
+            if(err && !hasErrored) {
+                hasErrored = true;
+                log.error('Error updating symlinks directory!: ',err);
+                cb(err);
+            } else if(!hasErrored){
+                if(++linked == total) {
+                    cb();
+                }
+            }
+        });
+    }
+    function startLinking() {
+        fs.mkdir(template_links_dir, 0777, function(err) {
+            if(err) {
+                return cb(err);
+            }
+            templater.listAllThemeTemplates(function(err, files) {
+                if(err) {
+                    return cb(err);
+                }
+                var l = files.length;
+                total = l;
+                while(l--) {
+                    linkFile(files[l]);
+                }
+            });
+        });
+    }
+    function killFile(file) {
+        fs.unlink(file, function(err) {
+            if(++filesDeleted == totalFilesToDelete) {
+                fs.rmdir(template_links_dir, function(sts) {
+                    startLinking();
+                });
+            }
+        });
+    }
+    fs.readdir(template_links_dir, function (err, files) {
+        if(err) {
+            // Hooray it doesn't exist!
+            startLinking();
+        } else if(!files.length) {
+            // It has no files so we can delete the bitch
+            fs.rmdir(template_links_dir, function(sts) {
+                log.error('delete status: ',sts);
+                startLinking();
+            });
+        } else {
+            // It has files and we have to manually delete them one by one THEN delete the directory
+            // because node.js does not appear to have the ability to do rm -r
+            totalFilesToDelete = files.length;
+            for(var x=0, l=files.length; x<l; x++) {
+                killFile(template_links_dir + files[x]);
+            }
+        }
+    });
 };
 
 // toString all the functions that we want to access on the front end
@@ -234,7 +308,7 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
 exports.renderList = function(items, instructions, urlObj, pageData, cb) {
     templater.parseListView(instructions.list_view || 'list.html', function(err, listData) {
         if(err) {
-            cb('Error parsing list view: ',err);
+            cb('Error parsing list view: '+err);
             return;
         }
         var template_view = instructions.view || 'link.html';
@@ -310,7 +384,9 @@ exports.getData = function(urlObject, plip, pageData, cb) {
 
 exports.readTemplate = function(name, cb) {
     name = name.substr(-5) == '.html' ? name : name + '.html';
-    fs.readFile(template_dir + theme + name, function(err, file) {
+    // We need to include dirname because if templater is called from somewhere other than core/lib, the relative
+    // path changes. I don't think I like this
+    fs.readFile(__dirname + '/' + template_dir + theme + name, function(err, file) {
         if(err) {
             cb(err);
         } else{
@@ -319,31 +395,43 @@ exports.readTemplate = function(name, cb) {
     });
 };
 
-exports.listTemplates = function(options, cb) {
+exports.listAllThemeTemplates = function(cb) {
     if(typeof options == 'function') {
         cb = options;
         options = {};
     }
-    utils.readDir(template_dir + theme, function(err, start, dirs, files) {
+    utils.readDir(__dirname + '/' + template_dir + theme, function(err, data) {
         if(err) {
-            cb(err);
-        } else {
-            var templates = [], f;
-            // Filter out VIM swap files for example
-            for(var x=0; x<files.length; x++) {
-                // include everything (including say vim swap files) if specified
-                f = path.basename(files[x]);
-                if(options.really_include_all || 
-                    // Otherwise, we only want html files...
-                    ((/\.html$/).test(f) && 
-                    // And exclude convention named files like global by default
-                    (options.include_all || (f != 'global.html')) && f != 'index.html')) {
-                    templates.push(f);
-                }
-            }
-            cb(null, templates);
+            return cb(err);
         }
+        var templates = [], f;
+        // Filter out VIM swap files for example
+        for(var x=0; x<data.files.length; x++) {
+            f = data.files[x];
+            // template must be .html files (not say .swp files which could be in that dir)
+            if((/\.html$/).test(f)) {
+                templates.push(f);
+            }
+        }
+        cb(null, templates);
     });
+}
+
+exports.listTemplates = function(options, cb) {
+    var templates = [], f;
+    // Filter out VIM swap files for example
+    for(var x=0; x<files.length; x++) {
+        // include everything (including say vim swap files) if specified
+        f = path.basename(files[x]);
+        if(options.really_include_all || 
+            // Otherwise, we only want html files...
+            ((/\.html$/).test(f) && 
+            // And exclude convention named files like global by default
+            (options.include_all || (f != 'global.html')) && f != 'index.html')) {
+            templates.push(f);
+        }
+    }
+    cb(null, templates);
 };
 
 // Put the template into compiled and return the parsed data
