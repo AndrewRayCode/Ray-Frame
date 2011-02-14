@@ -103,9 +103,9 @@ server.get(/.*/, function(req, res) {
 		try {
             fs.readFile(req.url.substring(1), function(err, data) {
                 if(err) {
+                    log.warn('Non-existant static file was requested (404): `'+req.url+'`: ',err);
                     res.writeHead(404, {'Content-Type': 'text/html'});
-                    res.end('Todo: this should be some standardized 404 page' + e);
-                    return;
+                    return res.end('Todo: this should be some standardized 404 page');
                 }
                 res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
                 res.end(data.toString());
