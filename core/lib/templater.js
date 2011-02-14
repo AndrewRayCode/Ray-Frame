@@ -224,7 +224,7 @@ exports.renderListElement = function(index, urlObj, view_template, listData, ele
         // Then render that into the list element...
 
         // TODO: Here is where we will need to parse things like even, odd, classes, etc, probalby in a helper function
-        cb(null, listData.element.replace('{{child}}', '<span class="edit_list_item" id="'+elementData._id+'">'+rendered_content+'</span>'));
+        cb(null, listData.element.replace('{{child}}', '<span class="edit_list_item" id="'+(elementData._id || elementData.id)+'">'+rendered_content+'</span>'));
     });
 };
 
@@ -267,7 +267,7 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
                         if(doc.template) {
                             var views = $1;
                             for(var x=0; x<views.length; x++) {
-                                if(doc.template.indexOf(views[x]) > -1) {
+                                if(doc.template == views[x] + '.html') {
                                     emit(views[x], doc);
                                     break;
                                 }
@@ -437,10 +437,12 @@ exports.listTemplates = function(options, cb) {
         options = {};
     }
     templater.listAllThemeTemplates(function(err, files) {
-        var templates = [], f;
+        var templates = [],
+            killname = 'templates/',
+            f;
         for(var x=0; x<files.length; x++) {
             // include everything (including say vim swap files) if specified
-            f = path.basename(files[x]);
+            f = files[x].substring(files[x].indexOf(killname) + 10);
             if(options.really_include_all || 
                 // Otherwise, we only want html files...
                 ((/\.html$/).test(f) && 
