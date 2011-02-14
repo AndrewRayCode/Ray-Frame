@@ -18,6 +18,7 @@ var templater = module.exports,
 // Regex to find {{ stuff }}
 exports.modelReplaces = /\{\{\S+?\}\}/g;
 
+// Set variables we need
 exports.setReferences = function(role) {
     isAdmin = role;
 };
@@ -29,6 +30,10 @@ exports.setTheme = function(str, cb) {
     });
 };
 
+// Templates can be stored in any folder structure the user wants in themes/theme/templates. For faster
+// template lookup, symlink all the template names to /tmp/tlinks so we can just know that "blog.html" lives
+// at wherever it lives. One obvious issue is templates can't share names even in subfolders. TODO: Address that issue 
+// but only if we need to. It may not be a problem, see how websites implement template names
 exports.updateSymLinks = function(cb) {
     var linked = 0,
         total = 0,
@@ -85,7 +90,6 @@ exports.updateSymLinks = function(cb) {
         } else if(!files.length) {
             // It has no files so we can delete the bitch
             fs.rmdir(template_links_dir, function(sts) {
-                log.error('delete status: ',sts);
                 startLinking();
             });
         } else {
@@ -386,10 +390,23 @@ exports.readTemplate = function(name, cb) {
     name = name.substr(-5) == '.html' ? name : name + '.html';
     // We need to include dirname because if templater is called from somewhere other than core/lib, the relative
     // path changes. I don't think I like this
-    fs.readFile(__dirname + '/' + template_dir + theme + name, function(err, file) {
+    var tmpl = template_links_dir + name;
+    fs.readFile(tmpl, function(err, file) {
         if(err) {
-            cb(err);
-        } else{
+            // If this file isn't found, maybe the template directory was updated and that template
+            // got moved or renamed. Rebuild the symlink directory then try to find it again. If it 
+            // still doesn't exist, then it really doesn't exit
+            // TODO: Look into fs.watchFile, see if we can watch the templates directory (not individual html files)
+            //       for changes so that we can rerun updateSymLinks for more robust lookups
+            templater.updateSymLinks(function(err) {
+                fs.readFile(tmpl, function(err, file) {
+                    if(err) {
+                        return cb(err);
+                    }
+                    return cb(null, file.toString());
+                });
+            });
+        } else {
             cb(null, file.toString());
         }
     });

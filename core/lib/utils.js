@@ -88,7 +88,7 @@ exports.readDir = function(start, callback) {
                     // If we found a directory, recurse!
                     utils.readDir(abspath, function(err, data) {
                         found.dirs = found.dirs.concat(data.dirs);
-                        found.files = found.dirs.concat(data.files);
+                        found.files = found.files.concat(data.files);
                         if(++processed == total) {
                             callback(null, found);
                         }
