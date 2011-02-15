@@ -99,10 +99,13 @@ exports.createServer = function(options, cb) {
             }
         });
 
+        // Tell our template library what theme to use
         templater.setTheme(theme, function(err) {
             if(err) {
                 return log.error('Error setting theme!: ',err);
             }
+
+            // Set up our transient functions (functions that can run server and client side, right now for core live in transient.js);
             var t = './transients.js';
             path.exists(t, function(ya) {
                 if(ya) {
@@ -111,12 +114,17 @@ exports.createServer = function(options, cb) {
                         templater.addTransientFunction([x, transients[x]]);
                     }
                 }
+                // Also copy over all the utility functions to be transients
                 for(var x in utils) {
                     templater.addTransientFunction([x, utils[x]]);
                 }
 
                 templater.addTransientFunction('templater.getInstructions');
                 templater.setReferences(isAdmin);
+
+                server.setUpAccess(express);
+
+                // Here we go!
                 express.listen(options.server_port || 8080);
                 log.info('Server running!');
 
@@ -187,7 +195,8 @@ exports.resetDatabase = function(couch, callback) {
     });
 };
 
-exports.setUpAccess = function(callback) {
+// Set up access functions for admin AJAX calls
+exports.setUpAccess = function(express) {
     // TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
     var ROLES = ['admin'],
         ACCESS_PREFIX = '/access'; // Change for one more quip of security
@@ -197,7 +206,7 @@ exports.setUpAccess = function(callback) {
         var funcs = accessors.functions[item];
 
         function createPost(funcName) {
-            server.post(ACCESS_PREFIX+'/'+funcName, function(req, res) {
+            express.post(ACCESS_PREFIX+'/'+funcName, function(req, res) {
                 // TODO: Determine authenticaiton here. Session / cookie based? All higher level roles have access to lower level roles
                 if(isAdmin) {
                     couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
