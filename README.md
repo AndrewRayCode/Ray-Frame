@@ -14,8 +14,10 @@ I am making Ray-Frame for several reasons. There is not currently a CMS solution
 * Widgets (not currently implemeneted) should be simple to write because community content is king for successful web software. But again, widgets should not sandbox the writer into anything, if you want to access some core function of the site go ahead, just research it well.
 
 ### Dependencies
-node
-    Right now this is running on node v0.2.5. The couch client is dependant on this version as well. I do have plans to upgrade at some point, but not yet, as I require the older version of node for work.
+node v0.2.5
+    Right now this is running on node v0.2.5. The couch client is dependant on this version as well.
+    I do have plans to upgrade at some point, but not yet, as I require the older version of node for work.
+    Although, since I patched the couch client, I haven't seen many major issues yet.
 
 express
     URL: 
