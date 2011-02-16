@@ -44,12 +44,12 @@ CouchDb
 ### How to start Ray-Frame
 You must have a CouchDB instance running to start. Simply run:
 
-> node server.js
+> node runme.js
 
 And then hit http://localhost:8080/ and you will see your test website! All of the code is currently in server.js
 
 ### How to run the tests
-nodeunit test/tests.js
+nodeunit core/test
 
 ### Basic Technical Overview + Rules
 * I have a basic workflow diagram mapped out, I will add it to this file or the Wiki at some point

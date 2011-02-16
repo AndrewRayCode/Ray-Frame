@@ -126,7 +126,7 @@ exports.createServer = function(options, cb) {
 
                 // Here we go!
                 express.listen(options.server_port || 8080);
-                log.info('Server running!');
+                log.info('Server running on '+(options.server_port || 8080)+'!');
 
                 if(cb) {
                     cb();
@@ -135,7 +135,7 @@ exports.createServer = function(options, cb) {
         });
     }
 
-    if(options.hard_restart) {
+    if(options.hard_reset) {
         server.resetDatabase(couch, function(err) {
             if(err) {
                 return log.error('Fatal error encounted while trying to reset database: ',err);

@@ -1,5 +1,11 @@
-exports.testSomething = function(test){
-    test.expect(1);
-    test.ok(true, "this assertion should pass");
-    test.done();
+var testutils = require('./utils'),
+    log = require('../lib/logger');
+
+exports.testServer = function(assert){
+    testutils.requestURL(assert, {}, {url:'/'}, function(server, response) {
+        log.error('response');
+        assert.expect(1);
+        assert.ok(true, "this assertion should pass");
+        assert.done();
+    });
 };
