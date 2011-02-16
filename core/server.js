@@ -24,6 +24,8 @@ exports.createServer = function(options, cb) {
         core_static = 'core/static/',
         user_static = 'user/themes/'+theme+'/static/';
 
+    this.couch = couch;
+    this.express = express;
     express.use(express_lib.bodyDecoder());
     express.error(function(err, req, res) {
         log.warn('Server error: '+err);
@@ -129,7 +131,7 @@ exports.createServer = function(options, cb) {
                 log.info('Server running on '+(options.server_port || 8080)+'!');
 
                 if(cb) {
-                    cb();
+                    cb(null, server);
                 }
             });
         });
@@ -209,8 +211,8 @@ exports.setUpAccess = function(express) {
             express.post(ACCESS_PREFIX+'/'+funcName, function(req, res) {
                 // TODO: Determine authenticaiton here. Session / cookie based? All higher level roles have access to lower level roles
                 if(isAdmin) {
-                    couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
-                        funcs[funcName](req, res, result.rows[0].doc, result.rows[1].doc, couch);
+                    exports.couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
+                        funcs[funcName](req, res, result.rows[0].doc, result.rows[1].doc, exports.couch);
                     });
                 }
             });

@@ -1,11 +1,15 @@
 var log = require('../lib/logger'),
     http = require('http'),
+    sys = require('sys'),
+    nodeunit = require('nodeunit'),
+    querystring = require('querystring'),
     server = require('../server');
 
-exports.requestURL = function(assert, thing, hitMe, cb) {
-    var rayframe;
-    function run() {
-        var client = http.createClient(thing.server_port, 'localhost');
+exports.requestURL = function(self, assert, config_or_server, hitMe, cb) {
+    function run(rayframe) {
+        self.rayframe = rayframe;
+
+        var client = http.createClient(config.server_port, 'localhost');
 
         var request = client.request(hitMe.method || 'GET', hitMe.url);
         request.on('response', function(response) {
@@ -29,7 +33,7 @@ exports.requestURL = function(assert, thing, hitMe, cb) {
                     offset += chunks[c].length;
                 }
 
-                cb(rayframe, buff.toString());
+                cb(self.rayframe, buff.toString());
             }
             response.on('end', done);
         });
@@ -37,14 +41,47 @@ exports.requestURL = function(assert, thing, hitMe, cb) {
             log.error('Error on request to server: ',err);
             assert.done();
         });
-        request.end();
+        request.end(querystring.stringify(hitMe.body));
     }
 
-    // This is a config object
-    if(!thing.createServer) {
-        thing.db_name = thing.db_name || 'rayframe-test'; 
-        thing.server_port = thing.server_port || 8081;
-        thing.hard_reset = true;
+    var config, rayframe;
+    // If we are reusing a server
+    if(config_or_server.createServer) {
+        rayframe = config_or_server;
+        config = {};
+    } else {
+        config = config_or_server;
     }
-    rayframe = server.createServer(thing, run);
+
+    // TODO: It would be super nice if we could pull these off the sever object if we are passed a server
+    // object to reuse
+    config.db_name = config.db_name || 'rayframe-test'; 
+    config.server_port = config.server_port || 8081;
+    config.hard_reset = config.hard_reset || true;
+    config.theme = config.theme || 'test_theme';
+
+    // Make a new server if we are passed a config option, else assume one is open
+    if(rayframe) {
+        run(rayframe);
+    } else {
+       server.createServer(config, function(err, server) {
+           run(server);
+       });
+    }
 };
+
+function testCase(suite){
+    suite.setUp =  function(test){
+        this.rayframe = null;
+        test();
+    };
+    suite.tearDown = function(test){
+        if(this.rayframe) {
+            this.rayframe.express.close();
+        }
+        test();
+    };
+    return testCase.super_.call(this, suite);
+}
+sys.inherits(testCase, nodeunit.testCase);
+exports.testCase = testCase;

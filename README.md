@@ -51,7 +51,7 @@ You must have a CouchDB instance running to start. Simply run:
 And then hit http://localhost:8080/ and you will see your test website! All of the code is currently in server.js
 
 ### How to run the tests
-nodeunit core/test
+nodeunit core/test/suites
 
 ### Basic Technical Overview + Rules
 * I have a basic workflow diagram mapped out, I will add it to this file or the Wiki at some point

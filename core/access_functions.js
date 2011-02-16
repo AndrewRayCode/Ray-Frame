@@ -3,8 +3,6 @@ var sys    = require('sys'),
     fs = require('fs'),
     templater = require('./lib/templater'),
     utils = require('./lib/utils'),
-    couch_client = require('../../node-couchdb/index.js').createClient(5984, 'localhost'),
-    couch = couch_client.db('rayframe'),
     access_functions = module.exports;
 
 // These functions, currently wired up to post methods in sever.js, are access / update functions accessible from the website URL. The syntax is such:
