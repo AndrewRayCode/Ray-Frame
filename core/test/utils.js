@@ -9,9 +9,10 @@ exports.requestURL = function(self, assert, config_or_server, hitMe, cb) {
     function run(rayframe) {
         self.rayframe = rayframe;
 
-        var client = http.createClient(config.server_port, 'localhost');
-
-        var request = client.request(hitMe.method || 'GET', hitMe.url);
+        var client = http.createClient(config.server_port),
+            q = querystring.stringify(hitMe.body),
+            request = client.request(hitMe.method || 'GET',
+                hitMe.url, hitMe.method ? {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'content-length':q.length} : {});
         request.on('response', function(response) {
             var chunks = [], length = 0;
 
@@ -41,7 +42,7 @@ exports.requestURL = function(self, assert, config_or_server, hitMe, cb) {
             log.error('Error on request to server: ',err);
             assert.done();
         });
-        request.end(querystring.stringify(hitMe.body));
+        request.end(q);
     }
 
     var config, rayframe;

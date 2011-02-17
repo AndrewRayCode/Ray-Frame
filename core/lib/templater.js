@@ -7,20 +7,20 @@ var templater = module.exports,
 	path = require('path'),
     transients = require('../transients'),
     utils = require('./utils'),
-	couch_client = require('../../../node-couchdb/index.js').createClient(5984, 'localhost'),
-    couch = couch_client.db('rayframe'),
 	adminFiles = '<script src="/static/admin/jquery-1.5.min.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />',
     transientFunctions = '',
     // TODO: oh god I am repeating myself from server.js, fix this shenanegins
     ACCESS_PREFIX = '/access',
+    couch,
     theme;
 
 // Regex to find {{ stuff }}
 exports.modelReplaces = /\{\{\S+?\}\}/g;
 
 // Set variables we need
-exports.setReferences = function(role) {
+exports.setReferences = function(role, db) {
     isAdmin = role;
+    couch = db;
 };
 
 exports.setTheme = function(str, cb) {

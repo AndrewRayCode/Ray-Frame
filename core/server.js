@@ -122,7 +122,7 @@ exports.createServer = function(options, cb) {
                 }
 
                 templater.addTransientFunction('templater.getInstructions');
-                templater.setReferences(isAdmin);
+                templater.setReferences(isAdmin, couch);
 
                 server.setUpAccess(express);
 
@@ -158,7 +158,7 @@ exports.resetDatabase = function(couch, callback) {
                     log.error('There was a fatal error creating the database! ',err);
                     return callback(err);
                 } else {
-                    log.info('Recreated database `rayframe`');
+                    log.info('Recreated database `'+couch.name+'`');
 
                     // Create a view in a design doc TODO: Is there a way to multi these two calls?
                     couch.saveDesign('master', {

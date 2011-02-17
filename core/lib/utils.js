@@ -43,7 +43,7 @@ exports.newUrlFromId = function(urlId, title) {
 
 // TODO: This needs to be available on the front end as well for title generation
 exports.generateTitle = function(str) {
-    return str.replace(/\s+/, '_').replace(/\W/g, '').trim();
+    return str.replace(/\s+/g, '_').replace(/\W/g, '').trim();
 };
 
 exports.getOrCreate = function(path, template, cb) {
