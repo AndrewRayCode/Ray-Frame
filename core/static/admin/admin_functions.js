@@ -120,7 +120,7 @@ var RayFrame = new RayFrameUtils();
             item_plip: currentEditor.target.attr('id'),
             title: currentEditor.input.val()
         }, function(data) {
-            //window.location = data.new_url;
+            window.location = data.new_url;
         });
     }
 
