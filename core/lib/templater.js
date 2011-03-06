@@ -471,14 +471,16 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
             if(isAdmin) {
                 // Add admin files to front end, and pass variables about current ids for page context. TODO: This is shittacular on so many levels
                 // TODO: Also, uglify some shit up in this bitch
-                f = f.replace('</body>', (adminFiles+
-						'<script>var current_id="'+pageData._id+'", current_url_id="'+urlObj._id+'", access_urls='+JSON.stringify(prefixii)+';'+
-                        transientFunctions+'</script></body>').
-                    // If you do:
-                    // 'abc'.replace('c', "$'")
-                    // $' evaluates to some regex capture group it looks like, even though 'c' isn't a regex
-                    replace(/\$'/g, '$you-silly-capture-group')).replace(/you-silly-capture-group/g, "'");
-            }
+				f = f.replace('</body>', function() {
+						return adminFiles+
+							'<script>var current_id="'+pageData._id+'", current_url_id="'+urlObj._id+'", access_urls='+JSON.stringify(prefixii)+';'+
+							transientFunctions+'</script></body>';
+				});
+            } else {
+				f = f.replace('</body>', function() {
+					return transientFunctions+'</script></body>';
+				});
+			}
             fs.writeFile('compiled/'+urlObj._id, f);
             cb(null, f);
         }
