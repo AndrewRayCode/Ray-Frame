@@ -10,7 +10,7 @@ var templater = module.exports,
 	adminFiles = '<script src="/static/admin/jquery-1.5.min.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />',
     transientFunctions = '',
     // TODO: oh god I am repeating myself from server.js, fix this shenanegins
-    ACCESS_PREFIX = '/access',
+    prefixii,
     couch,
     theme;
 
@@ -18,9 +18,10 @@ var templater = module.exports,
 exports.modelReplaces = /\{\{\S+?\}\}/g;
 
 // Set variables we need
-exports.setReferences = function(role, db) {
+exports.setReferences = function(role, db, pre) {
     isAdmin = role;
     couch = db;
+	prefixii = pre;
 };
 
 exports.setTheme = function(str, cb) {
@@ -357,7 +358,7 @@ exports.getData = function(urlObject, plip, pageData, cb) {
 	// If this is an included file we need to start the parse chain all over again
     } else if(instructions.include) {
 		var lookup = 'includes'+instructions.field;
-		utils.getOrCreate(lookup, instructions.field, function(err, obj) {
+		utils.getOrCreate(couch, lookup, instructions.field, function(err, obj) {
 			if(err) {
 				cb(err);
 			} else {
@@ -471,7 +472,7 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
                 // Add admin files to front end, and pass variables about current ids for page context. TODO: This is shittacular on so many levels
                 // TODO: Also, uglify some shit up in this bitch
                 f = f.replace('</body>', (adminFiles+
-                        '<script>var current_id="'+pageData._id+'", current_url_id="'+urlObj._id+'", access_url="'+ACCESS_PREFIX+'";'+
+						'<script>var current_id="'+pageData._id+'", current_url_id="'+urlObj._id+'", access_urls='+JSON.stringify(prefixii)+';'+
                         transientFunctions+'</script></body>').
                     // If you do:
                     // 'abc'.replace('c', "$'")
@@ -491,14 +492,14 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
                 if(instr.field == 'child') {
                     // If it has an attribute like child.title
                     if(instr.attr) {
+                        log.warn('looking up ',matches[0].replace('child.', ''),' on ',pageData);
                         templater.getData(urlObj, matches[0].replace('child.', ''), pageData, function(err, val) {
                             // TODO: Man, you know what, I'd rather just throw this junk, this doesn't feel DRY
                             if(err) {
-                                cb(err);
-                            } else {
-                                f = f.replace(matches[0], val);
-                                replaceGlobal(f);
+                                return cb(err);
                             }
+                            f = f.replace(matches[0], val);
+                            replaceGlobal(f);
                         });
                     // Otherwise this is where we put the child in the template
                     } else {

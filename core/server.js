@@ -8,6 +8,11 @@ var http = require('http'),
     accessors = require('./access_functions'),
 	express_lib = require('express'),
     server = module.exports,
+    // TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
+    prefixii = {
+		admin: '/access', // Change for one more quip of security
+		'public': '/interact'
+	},
     // TODO: Authentication with login form, maybe user level permissions
     isAdmin = 1;
 
@@ -122,7 +127,7 @@ exports.createServer = function(options, cb) {
                 }
 
                 templater.addTransientFunction('templater.getInstructions');
-                templater.setReferences(isAdmin, couch);
+                templater.setReferences(isAdmin, couch, prefixii);
 
                 server.setUpAccess(express);
 
@@ -199,16 +204,12 @@ exports.resetDatabase = function(couch, callback) {
 
 // Set up access functions for admin AJAX calls
 exports.setUpAccess = function(express) {
-    // TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
-    var ROLES = ['admin'],
-        ACCESS_PREFIX = '/access'; // Change for one more quip of security
-
     // Set up each external access function as a post with express
-    ROLES.forEach(function(item) {
-        var funcs = accessors.functions[item];
+	for(var role in accessors.functions) {
+        var funcs = accessors.functions[role];
 
-        function createPost(funcName) {
-            express.post(ACCESS_PREFIX+'/'+funcName, function(req, res) {
+        function createPost(role, funcs, funcName) {
+			express.post((prefixii[role] || '')+'/'+funcName, function(req, res) {
                 // TODO: Determine authenticaiton here. Session / cookie based? All higher level roles have access to lower level roles
                 if(isAdmin) {
                     exports.couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
@@ -216,15 +217,15 @@ exports.setUpAccess = function(express) {
                     });
                 }
             });
-        };
+        }
 
         // Call closure function on every function for this role
         if(funcs) {
             for(var funcName in funcs) {
-                createPost(funcName);
+                createPost(role, funcs, funcName);
             }
         }
-    });
+    }
 };
 
 // Serve a template from cache or get new version

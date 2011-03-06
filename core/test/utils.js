@@ -34,7 +34,12 @@ exports.requestURL = function(self, assert, config_or_server, hitMe, cb) {
                     offset += chunks[c].length;
                 }
 
-                cb(self.rayframe, buff.toString());
+                buff = buff.toString();
+                try {
+                    cb(self.rayframe, JSON.parse(buff));
+                } catch(e) {
+                    cb(self.rayframe, buff);
+                }
             }
             response.on('end', done);
         });

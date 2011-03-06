@@ -2,7 +2,7 @@ var RayFrameUtils = function() {
     this.$ = jQuery.noConflict(true);
     this.post = function(url, data, cb) {
         var send = {current_id: current_id, current_url_id: current_url_id};
-        url = access_url + '/' + url;
+        url = access_urls.admin + '/' + url; // Assuming admin here
         if(cb) {
             // If we got a data object we will have cb
             this.$.extend(send, data);

@@ -2,8 +2,6 @@ var sys    = require('sys'),
 	log = require('./logger'),
 	path = require('path'),
     fs = require('fs'),
-	couch_client = require('../../../node-couchdb/index.js').createClient(5984, 'localhost'),
-    couch = couch_client.db('rayframe'),
     utils = module.exports;
 
 // Search backwards from and NOT including s looking for c (regex or string)
@@ -46,7 +44,7 @@ exports.generateTitle = function(str) {
     return str.replace(/\s+/g, '_').replace(/\W/g, '').trim();
 };
 
-exports.getOrCreate = function(path, template, cb) {
+exports.getOrCreate = function(couch, path, template, cb) {
 	couch.getDoc(path, function(err, firstres) {
 		if(err) {
 			// This thing is not yet in the database. Let's put it there!

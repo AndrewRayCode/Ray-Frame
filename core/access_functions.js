@@ -117,8 +117,17 @@ exports.functions = {
                             res.send({status:'failure', message:err.message});
                         } else if(result.rows.length < 1) {
                             // No url found. Special case, like if we are updating a list on the global template that has no URL object. Then we use
-                            // the current url data
-                            beginUpdate(correctPageData, urlData);
+                            // the url data of the home page, because who knows where the include is
+                            if(urlData._id == '~') {
+                                beginUpdate(correctPageData, urlData);
+                            } else {
+                                couch.getDoc('~', function(err, homepageUrlData) {
+                                    if(err) {
+                                        return res.send({status:'failure', message:err.message});
+                                    }
+                                    beginUpdate(correctPageData, homepageUrlData);
+                                });
+                            }
                         } else {
                             beginUpdate(correctPageData, result.rows[0].doc);
                         }
@@ -163,5 +172,9 @@ exports.functions = {
                 });
             });
         }
-    }
+    }, 'public': {
+		addComment: function(req, res, pageData, urlData, couch) {
+
+		}
+	}
 };
