@@ -3,7 +3,37 @@ var testutils = require('../utils'),
     log = require('../../lib/logger');
 
 module.exports = testutils.testCase({
-	'test addChild': function(assert) {
+    'test local includes': function(assert) {
+        var self = this;
+        assert.expect(2);
+        // Get the homepage to force generation of includesheader.html
+        testutils.requestURL(self, assert, {}, {url:'/'}, function(server, response) {
+			var couch_client = require('../../../../node-couchdb/index.js').createClient(5984, 'localhost'),
+			couch = couch_client.db('rayframe-test');
+
+			// First save two pages to the homepage
+			couch.getDocsByKey(['includesheader.html', 'url:~'], function(err, result) {
+				var pageData = result.rows[0].doc;
+					urlData = result.rows[1].doc;
+
+				// Make sure to set individual 'weasel' attributes which SHOULD show up on the {{include.html:local}} include on page.html
+				utils.addChildByTitle(couch, pageData, 'pages', {template: 'page.html', title:'page1', weasel: 'trout1'}, urlData, function(err, added) {
+					utils.addChildByTitle(couch, pageData, 'pages', {template: 'page.html', title:'page2', weasel: 'trout2'}, urlData, function(err, added) {
+
+						// Make sure that page1 gets 'trout1', and page2 gets 'trout2'
+						testutils.requestURL(self, assert, server, {url:'/page1'}, function(server, response) {
+							assert.ok(response.indexOf('trout1'), 'page1 did not get local include data!!');
+							testutils.requestURL(self, assert, server, {url:'/page2'}, function(server, response) {
+								assert.ok(response.indexOf('trout2'), 'page2 did not get local include data!!');
+								assert.done();
+							});
+						});
+					});
+				});
+			});
+		});
+    },
+	'test addChildById': function(assert) {
         var self = this;
         assert.expect(3);
         // Get the homepage to force generation of includesheader.html
@@ -15,11 +45,13 @@ module.exports = testutils.testCase({
 				var pageData = result.rows[0].doc;
 					urlData = result.rows[1].doc;
 
-				utils.addChild(couch, pageData, 'comments', {template: 'comment.html', title:'hello'}, urlData, function(err, added) {
-					assert.ok(added.id);
-					couch.getDocsByKey(['root', utils.sanitizeUrl(utils.newUrlFromId(urlData._id, added.id))], function(err, result) {
-						assert.equals(result.rows[0].doc.comments[0], added.id);
-						assert.equals(result.rows[1].doc.reference, added.id);
+				// This is the function we are testing
+				utils.addChildById(couch, pageData, 'comments', {template: 'comment.html', title:'hello'}, urlData, function(err, added) {
+					assert.ok(added._id);
+					couch.getDocsByKey(['root', utils.sanitizeUrl(utils.newUrlFromId(urlData._id, added._id))], function(err, result) {
+						// Make sure that the new object was added to comments, and a new url object was created referencing the new object
+						assert.equals(result.rows[0].doc.comments[0], added._id);
+						assert.equals(result.rows[1].doc.reference, added._id);
 						assert.done();
 					});
 				});

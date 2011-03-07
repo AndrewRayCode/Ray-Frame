@@ -176,7 +176,7 @@ exports.functions = {
 				title: req.body.title,
 				body: req.body.body
 			};
-			utils.addChild(couch, pageData, 'comments', child, urlData, function(err, child) {
+			utils.addChildById(couch, pageData, 'comments', child, urlData, function(err, child) {
 				res.send('err? '+sys.inspect(err)+' child? '+sys.inspect(child));
 			});
 		}

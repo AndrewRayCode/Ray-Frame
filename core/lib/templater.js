@@ -163,6 +163,9 @@ exports.getInstructions = function(plip) {
     //TODO: better way to identify {{template.html}} import
     if(split[1] == 'html') {
         conclusion.include = true;
+		if(fields[1] == 'local') {
+			conclusion.local = true;
+		}
     } else {
         // Say if this has an attribute like {{child.attr}}
         conclusion.attr = split[1] || null;
@@ -357,14 +360,24 @@ exports.getData = function(urlObject, plip, pageData, cb) {
         cb(null, utils.newUrlFromId(urlObject._id, pageData.title));
 	// If this is an included file we need to start the parse chain all over again
     } else if(instructions.include) {
-		var lookup = 'includes'+instructions.field;
-		utils.getOrCreate(couch, lookup, instructions.field, function(err, obj) {
-			if(err) {
-				cb(err);
-			} else {
-                templater.parseTemplate(urlObject, obj, false, cb);
-			}
-		});
+		// There are two types of includes. A global include like {{header.html}} means that all pages using this include will share the
+		// same data, like navigation. A local include, like {{comments.html:local}} means that data will be relative to the current
+		// page we are on. Something added to a local include's list won't be visible on another object using that include
+		if(instructions.local) {
+			// This is kind of sketchy. We need to render this include with the same data as the current page, so just replace
+			// the template field of the current db object with the include's template and render it. Maybe recurseTemplateDir
+			// should take template name
+			pageData.template = instructions.field;
+			templater.recurseTemplateData(urlObject, pageData, false, cb);
+		} else {
+			var lookup = 'includes'+instructions.field;
+			utils.getOrCreate(couch, lookup, instructions.field, function(err, obj) {
+				if(err) {
+					return cb(err);
+				}
+				templater.recurseTemplateData(urlObject, obj, false, cb);
+			});
+		}
 	} else if(isAdmin) {
         var edit_id = (pageData._id || pageData.id)+':'+instructions.raw,
             callback = function(err, val) {
@@ -456,8 +469,33 @@ exports.listTemplates = function(options, cb) {
     });
 };
 
-// Put the template into compiled and return the parsed data
 exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
+	templater.recurseTemplateData(urlObj, pageData, canHaveGlobal, function(err, parsed) {
+		if(err) {
+			cb(err);
+		}
+		if(isAdmin) {
+			// Add admin files to front end, and pass variables about current ids for page context. TODO: This is shittacular on so many levels
+			// TODO: Also, uglify some shit up in this bitch
+			parsed = parsed.replace('</body>', function() {
+					return adminFiles+
+						'<script>var current_id="'+pageData._id+'", current_url_id="'+urlObj._id+'", access_urls='+JSON.stringify(prefixii)+';'+
+						transientFunctions+'</script></body>';
+			});
+		} else {
+			parsd = parsed.replace('</body>', function() {
+				return transientFunctions+'</script></body>';
+			});
+		}
+		parsed = parsed.replace(/<\/form>/g, function() {
+			return '<input type="hidden" name="current_id" value="'+pageData._id+'"><input type="hidden" name="current_url_id" value="'+urlObj._id+'"></form>';
+		});
+		cb(null, parsed);
+	});
+};
+
+// Put the template into compiled and return the parsed data
+exports.recurseTemplateData = function(urlObj, pageData, canHaveGlobal, cb) {
     var f, child, globalData;
     // First read the template from the templates directory
     templater.readTemplate(pageData.template, function(err, f) {
@@ -468,22 +506,6 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
 
         // Append the admin files and save the compiled page
         function end(f) {
-            if(isAdmin) {
-                // Add admin files to front end, and pass variables about current ids for page context. TODO: This is shittacular on so many levels
-                // TODO: Also, uglify some shit up in this bitch
-				f = f.replace('</body>', function() {
-						return adminFiles+
-							'<script>var current_id="'+pageData._id+'", current_url_id="'+urlObj._id+'", access_urls='+JSON.stringify(prefixii)+';'+
-							transientFunctions+'</script></body>';
-				});
-            } else {
-				f = f.replace('</body>', function() {
-					return transientFunctions+'</script></body>';
-				});
-			}
-			f = f.replace(/<\/form>/g, function() {
-				return '<input type="hidden" name="current_id" value="'+pageData._id+'"><input type="hidden" name="current_url_id" value="'+urlObj._id+'"></form>';
-			});
             fs.writeFile('compiled/'+urlObj._id, f);
             cb(null, f);
         }
@@ -547,8 +569,7 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
                         globalData = doc;
                         templater.readTemplate(globalData.template, function(err, g) {
                             if(err) {
-                                cb('Error reading template: `'+globalData.template+'`: '+sys.inspect(err));
-                                return;
+                                return cb('Error reading template: `'+globalData.template+'`: '+sys.inspect(err));
                             }
                             replaceGlobal(g);
                         });

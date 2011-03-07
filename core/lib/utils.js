@@ -115,15 +115,26 @@ exports.readDir = function(start, callback) {
     });
 };
 
-exports.addChild = function(couch, par, field, child, parUrl, cb) {
+exports.addChildByTitle = function(couch, par, field, child, parUrl, cb) {
+	utils.addChild(couch, 'title', par, field, child, parUrl, cb);
+};
+
+exports.addChildById = function(couch, par, field, child, parUrl, cb) {
+	utils.addChild(couch, '_id', par, field, child, parUrl, cb);
+};
+
+exports.addChild= function(couch, useForName, par, field, child, parUrl, cb) {
 	couch.saveDoc(child, function(err, saved) {
 		if(err) {
 			return cb(err);
 		}
-
+		// We want the id and rev of the saved object combined with the metadata passed in. this is our new object.
+		// Also, map id to _id to remain consistent with other places. Always try to use _id, stupid couch client
+		child._id = saved.id;
+		child.rev = saved.rev;
 		var url = {
 			// The database-safe new url
-			_id: utils.sanitizeUrl(utils.newUrlFromId(parUrl._id, saved.id)),
+			_id: utils.sanitizeUrl(utils.newUrlFromId(parUrl._id, child[useForName])),
 			// Reference to the newly added item
 			reference: saved.id,
 			// Copy the parent chain of url object ids and simply add the current id to the chain
@@ -132,13 +143,13 @@ exports.addChild = function(couch, par, field, child, parUrl, cb) {
 
 		// Update the current document's list with the new id
 		var arr = par[field];
-		par[field] = arr && arr.length ? arr.concat(saved.id) : [saved.id];
+		par[field] = arr && arr.length ? arr.concat(child._id) : [child._id];
 
 		couch.bulkDocs({docs: [url, par]}, function(err, result) {
 			if(err) {
 				cb(err);
 			}
-			cb(null, saved);
+			cb(null, child);
 		});
 	});
 };
