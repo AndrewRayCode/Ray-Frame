@@ -1,0 +1,8 @@
+<form action="/public/addComment" method="POST">
+	<input type="text" name="title" />
+	<br />
+	<textarea name="body"></textarea>
+	<input type="submit" value="go!" />
+</form>
+
+{{comments:list:view=comment.html}}
