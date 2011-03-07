@@ -70,9 +70,7 @@ exports.functions = {
                 // Get the stub item in the list to update its title field
                 couch.getDoc(item_instr.doc_id, function(err, docToAdd) {
                     if(err) {
-                        res.send({status:'failure', message:err.message});
-                        return;
-
+                        return res.send({status:'failure', message:err.message});
                     }
                     // Update the title field of the item in the list
                     docToAdd.title = req.body.title;
@@ -94,10 +92,9 @@ exports.functions = {
                     // Save the parent, the new item, and the new url object
                     couch.bulkDocs({docs: [pageData, docToAdd, url]}, function(err, result) {
                         if(err) {
-                            res.send({status:'failure', message:err.message});
-                        } else {
-                            res.send({status:'success', new_url:newLiveUrl});
+                            return res.send({status:'failure', message:err.message});
                         }
+						res.send({status:'success', new_url:newLiveUrl});
                     });
                 });
             }
@@ -116,12 +113,13 @@ exports.functions = {
                         if(err) {
                             res.send({status:'failure', message:err.message});
                         } else if(result.rows.length < 1) {
+							var home = utils.sanitizeUrl('/');
                             // No url found. Special case, like if we are updating a list on the global template that has no URL object. Then we use
                             // the url data of the home page, because who knows where the include is
-                            if(urlData._id == '~') {
+                            if(urlData._id == home) {
                                 beginUpdate(correctPageData, urlData);
                             } else {
-                                couch.getDoc('~', function(err, homepageUrlData) {
+                                couch.getDoc(home, function(err, homepageUrlData) {
                                     if(err) {
                                         return res.send({status:'failure', message:err.message});
                                     }
@@ -174,7 +172,13 @@ exports.functions = {
         }
     }, 'public': {
 		addComment: function(req, res, pageData, urlData, couch) {
-
+			var child = {
+				title: req.body.title,
+				body: req.body.body
+			};
+			utils.addChild(couch, pageData, 'comments', child, urlData, function(err, child) {
+				res.send('err? '+sys.inspect(err)+' child? '+sys.inspect(child));
+			});
 		}
 	}
 };

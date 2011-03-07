@@ -28,12 +28,14 @@ exports.guessContentType = function(file) {
 };
 
 // Couch can't handle `/` in keys, so relace with `~`
+// This method is for making url keys from live urls to put into the database
 exports.sanitizeUrl = function(str) {
     // Never have leading or trailing `.`s, except homepage which is just '~'
-    return str.replace(/\//g, '~').replace(/(.+)~$/, '$1').replace(/^~(.+)/, '$1');
+    return 'url:'+str.replace(/\//g, '~').replace(/(.+)~$/, '$1').replace(/^~(.+)/, '$1');
 };
 
 exports.newUrlFromId = function(urlId, title) {
+	urlId = urlId.replace('url:','');
     // homepage is special case
     return (urlId == '~' ? '/' : '/'+urlId.replace(/~/g, '/')) +
         (title ? (urlId == '~' ? '' : '/')+utils.generateTitle(title) : '');
@@ -111,4 +113,32 @@ exports.readDir = function(start, callback) {
             return callback(new Error("path: " + start + " is not a directory"));
         }
     });
+};
+
+exports.addChild = function(couch, par, field, child, parUrl, cb) {
+	couch.saveDoc(child, function(err, saved) {
+		if(err) {
+			return cb(err);
+		}
+
+		var url = {
+			// The database-safe new url
+			_id: utils.sanitizeUrl(utils.newUrlFromId(parUrl._id, saved.id)),
+			// Reference to the newly added item
+			reference: saved.id,
+			// Copy the parent chain of url object ids and simply add the current id to the chain
+			parents: parUrl.parents.concat(parUrl._id)
+		};
+
+		// Update the current document's list with the new id
+		var arr = par[field];
+		par[field] = arr && arr.length ? arr.concat(saved.id) : [saved.id];
+
+		couch.bulkDocs({docs: [url, par]}, function(err, result) {
+			if(err) {
+				cb(err);
+			}
+			cb(null, saved);
+		});
+	});
 };

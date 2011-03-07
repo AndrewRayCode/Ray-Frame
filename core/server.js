@@ -11,7 +11,7 @@ var http = require('http'),
     // TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
     prefixii = {
 		admin: '/access', // Change for one more quip of security
-		'public': '/interact'
+		'public': '/public'
 	},
     // TODO: Authentication with login form, maybe user level permissions
     isAdmin = 1;

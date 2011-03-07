@@ -481,6 +481,9 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
 					return transientFunctions+'</script></body>';
 				});
 			}
+			f = f.replace(/<\/form>/g, function() {
+				return '<input type="hidden" name="current_id" value="'+pageData._id+'"><input type="hidden" name="current_url_id" value="'+urlObj._id+'"></form>';
+			});
             fs.writeFile('compiled/'+urlObj._id, f);
             cb(null, f);
         }
@@ -494,7 +497,6 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
                 if(instr.field == 'child') {
                     // If it has an attribute like child.title
                     if(instr.attr) {
-                        log.warn('looking up ',matches[0].replace('child.', ''),' on ',pageData);
                         templater.getData(urlObj, matches[0].replace('child.', ''), pageData, function(err, val) {
                             // TODO: Man, you know what, I'd rather just throw this junk, this doesn't feel DRY
                             if(err) {
@@ -511,7 +513,7 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
                 } else {
                     // For a global file there won't be a URL object, so for generating links on that page
                     // just fake it as the home page, _id is all we need for now
-                    templater.getData({_id:'~'}, matches[0], globalData, function(err, val) {
+					templater.getData({_id: utils.sanitizeUrl('/')}, matches[0], globalData, function(err, val) {
                         if(err) {
                             cb(err);
                         } else {
