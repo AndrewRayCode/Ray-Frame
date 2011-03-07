@@ -1,0 +1,59 @@
+/*Admin form stuff*/
+.edit_form {margin:15px 0; width:90%; float:left; clear:both;}
+.edit_form.hidden {display:none;}
+.control {margin:0 0 6px; float:left; height:22px; margin:0 0 6px; width:663px;}
+.action_btn {margin:0 13px 0 0; text-transform:capitalize; font-size:0.8em; cursor:pointer; color:#FF5933; display:block; float:left; height:22px;}
+.action_btn .icon {display:block; width:16px; height:16px; float:left; background:transparent url(/assets/layout/edit-signiture.png) top left no-repeat scroll; margin:3px 3px 0 0}
+.action_btn.save .icon {background-image:url(/assets/layout/icon-save.png);}
+.action_btn.trash .icon {background-image:url(/assets/layout/icon-delete.png);}
+.action_btn.cancel .icon {background-image:url(/assets/layout/icon-cancel.png);}
+.action_btn#toggle_edit .icon {background-image:url(/assets/layout/icon-add.png);}
+.action_btn:hover {text-decoration:underline;}
+.action_btn.save {margin-top:20px;}
+.hide {display:none;}
+.categories li.invisible{background:transparent url(/assets/layout/lock_48.png) no-repeat scroll 0 22px; margin:0 0 0 -65px; padding:0 0 28px 65px;}
+#toggle_edit {width:663px;}
+.defaultSkin table.mceLayout {border:1px dashed #ddd !important;} 
+.defaultSkin table.mceLayout tr.mceLast td, .defaultSkin table.mceLayout tr.mceFirst td {border:0 none;}
+.tinymce {display:none !important;}
+
+/* Make templates inviisible, they are for copying only */
+#content_template {display:none;}
+#abstract_template {display:none;}
+#abstract_edit {display:none;}
+#content_edit {}
+
+.edit_form label {color:#666; font-size:0.8em; text-transform:uppercase;}
+#i_title, #h_title, #i_displayname, #h_displayname {font-family:Arial,Helvetica; font-size:20pt; font-weight:bold; letter-spacing:-0.04em; margin:0 0 10px; padding:0 0 3px; border:1px dashed #ddd; width:605px; color:#5C992E;}
+#i_link, #i_content_link, #h_content_link, #h_link, #i_file, #h_file, #i_tags, #h_tags {border:1px dashed #ddd; color:#666; width:605px;}
+.readonly {width:605px; display:block;}
+#i_visible, #h_visible {margin:0 0 0 20px; width:200px; border:1px dashed #ddd;}
+.image-widget {background:#E4E4E4 url(/assets/layout/sidebar_sep.jpg) repeat-x scroll 0 -1px !important; border:1px solid #CDCFCF; overflow:hidden !important; margin:0 !important; padding:8px !important;}
+
+.comment .admin_controls {color:#888; font-size:0.8em; display:block; width:100%; margin-bottom:10px; float:left;}
+.comments .comment .admin_controls {font-size:0.7em;}
+.comment .admin_delete_comment, .comment .comment_ip, .comment .admin_ban_ip {display:block; float:left; padding:0 4px 0 0; margin:0 4px 0 0; border-right:1px solid #ddd;}
+.comment .admin_ban_ip {border-right:0 none;}
+.comment .admin_delete_comment span {display:none;}
+.comment .admin_delete_comment:hover, .comment .comment_ip:hover , .comment .admin_ban_ip:hover {cursor:pointer; text-decoration:underline; color:#FF5933;}
+
+.image-widget {background:#fff; position:relative; overflow:auto; min-height:60px; min-width:100px;}
+.image-widget .shower {background:#eeeeff; position:absolute; top:0; left:0;}
+.image-widget .chooser {background:#ccddff; position:absolute; top:0; left:0;}
+.image-widget.has-image .btns {display:none;}
+.image-widget.has-image:hover .btns {display:block;}
+.image-widget .btn {opacity:0.85; position:absolute; top:0; left:0; width:100%; height:50%; background:#ffeeee;}
+.image-widget .btn span {display:block; margin:0 auto; font-size:10pt; font-weight:bold; width:115px;}
+.image-widget .btn:hover {opacity:1.0; cursor:pointer;}
+.image-widget .btn.finder {top:50%; background:#eeffcc;}
+.image-widget .upload {background:#ccddaa; position:absolute; top:0; left:0;}
+.image-widget .finder {background:#aaff22; position:absolute; top:0; left:0;}
+.image-widget-modal {border:1px solid #999; padding:6px; opacity:0.95; background:#fff; position:absolute; z-index:9999;}
+.image-widget-modal .uploader {width:100%}
+.image-widget-modal .uploader .row_header {width:100%;}
+.image-widget-modal .uploader .cell.upldr {width:100% !important;}
+.image-widget-modal .modal-cancel {position:absolute; top:-5px; right:-5px; background:red; cursor:pointer; font-weight:bold; padding:3px;}
+.image-widget-modal .modal-cancel:hover {color:#fff; background:#F20000;}
+.autocompleter-choices {z-index:99999;}
+
+.edit_me .image {width:160px; height:120px;}
