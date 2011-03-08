@@ -5,28 +5,25 @@ var log = require('../lib/logger'),
     querystring = require('querystring'),
     server = require('../server');
 
-exports.requestURL = function(self, assert, config_or_server, hitMe, cb) {
+exports.requestURL = function(self, assert, config_or_server, options, cb) {
     function run(rayframe) {
         self.rayframe = rayframe;
 
-        var client = http.createClient(config.server_port),
-            q = querystring.stringify(hitMe.body),
-            request = client.request(hitMe.method || 'GET',
-                hitMe.url, hitMe.method ? {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'content-length':q.length} : {});
-        request.on('response', function(response) {
-            var chunks = [], length = 0;
+        var body = querystring.stringify(options.body);
 
-            request.connection.on('error', function(err) {
-                log.error('Error on connection: ',err);
-                assert.done();
-            });
+        http.request({
+            path: options.url,
+            port: config.server_port,
+            method: options.method || 'GET',
+            headers: options.method == 'POST' ? {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'content-length': body.length} : {}
+        }, function(response) {
+            var chunks = [],
+                length = 0;
+
             response.on('data', function(chunk) {
                 chunks.push(chunk);
                 length += chunk.length;
-            });
-            function done() {
-                request.connection.end();
-
+            }).on('end', function() {
                 var buff = new Buffer(length),
                     offset = 0;
                 for(c in chunks){
@@ -40,14 +37,11 @@ exports.requestURL = function(self, assert, config_or_server, hitMe, cb) {
                 } catch(e) {
                     cb(self.rayframe, buff);
                 }
-            }
-            response.on('end', done);
-        });
-        request.connection.on('error', function(err) {
+            });
+        }).on('error', function(err) {
             log.error('Error on request to server: ',err);
             assert.done();
-        });
-        request.end(q);
+        }).end(body);
     }
 
     var config, rayframe;

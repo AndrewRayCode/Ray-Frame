@@ -1,4 +1,4 @@
-### What
+## What
 Ray-Frame is a web framework for building dynamic websites. It has a simple, django-ish templating language designed to let you do exactly what you want while abstracting out common tasks. It provides inline-editing on all of your templates so there is no separate interface to edit pages. The philosophies driving Ray-Frame are listed below
 
 ### The Ray-Frame Mentality
@@ -14,10 +14,8 @@ I am making Ray-Frame for several reasons. There is not currently a CMS solution
 * Widgets (not currently implemeneted) should be simple to write because community content is king for successful web software. But again, widgets should not sandbox the writer into anything, if you want to access some core function of the site go ahead, just research it well.
 
 ### Dependencies
-node v0.2.5
-    Right now this is running on node v0.2.5. The couch client is dependant on this version as well.
-    I do have plans to upgrade at some point, but not yet, as I require the older version of node for work.
-    Although, since I patched the couch client, I haven't seen many major issues yet.
+node >= v0.4.2
+    I upgraded to the latest version! Neato!
 
 express
     URL: 
@@ -48,7 +46,7 @@ You must have a CouchDB instance running to start. Simply run:
 
 > node runme.js
 
-And then hit http://localhost:8080/ and you will see your test website! All of the code is currently in server.js
+And then hit http://localhost:8080/ and you will see your test website!
 
 ### How to run the tests
 nodeunit core/test/suites

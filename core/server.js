@@ -31,7 +31,7 @@ exports.createServer = function(options, cb) {
 
     this.couch = couch;
     this.express = express;
-    express.use(express_lib.bodyDecoder());
+    express.use(express_lib.bodyParser());
     express.error(function(err, req, res) {
         log.warn('Server error: '+err);
         res.send('what the heck');
