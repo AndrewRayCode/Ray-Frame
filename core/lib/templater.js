@@ -7,7 +7,7 @@ var templater = module.exports,
 	path = require('path'),
     transients = require('../transients'),
     utils = require('./utils'),
-	adminFiles = '<script src="/static/admin/jquery-1.5.min.js"></script><script src="/static/admin/admin_functions.js"></script><link rel="stylesheet" href="/static/admin/admin.css" />',
+	adminFiles = '<script src="/admin/jquery-1.5.min.js"></script><script src="/admin/admin_functions.js"></script><link rel="stylesheet" href="/admin/admin.css" />',
     transientFunctions = '',
     // TODO: oh god I am repeating myself from server.js, fix this shenanegins
     prefixii,

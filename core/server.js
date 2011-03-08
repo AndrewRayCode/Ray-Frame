@@ -31,7 +31,22 @@ exports.createServer = function(options, cb) {
 
     this.couch = couch;
     this.express = express;
-    express.use(express_lib.bodyParser());
+
+    log.error( __dirname + '/../' + user_static);
+
+    express.configure(function(){
+        express.use(express_lib.bodyParser());
+
+        express.use(express_lib['static'](__dirname + '/../' + user_static));
+        express.use(express_lib['static'](__dirname + '/../' + core_static));
+
+        /*express.use(express_lib['static']({
+            root: __dirname + '/../' + user_static,
+            secondary: __dirname + '/../' + core_static
+        }));
+        */
+    });
+
     express.error(function(err, req, res) {
         log.warn('Server error: '+err);
         res.send('what the heck');
@@ -44,66 +59,41 @@ exports.createServer = function(options, cb) {
             var urlPath = req.url.split('/'),
                 dbPath = utils.sanitizeUrl(req.url);
 
-            // Static file handling
-            if(urlPath[1] == 'static') {
-                // TODO: Right now all static content must be in the static/ directory. This obviously doesn't sit well with things like
-                // favicons, rss feeds, etc, that need to be at root level. Should we serve everything in static out of root? Orrr make some
-                // things specified as root servable? Design decision needs to be made here
-                var stp = req.url.replace('/static', '');
-                fs.readFile(user_static + stp, function(err, data) {
-                    if(err) {
-                        fs.readFile(core_static + stp, function(err, data) {
-                            if(err) {
-                                log.warn('Non-existant static file was requested (404): `'+req.url+'`: ',err);
-                                res.writeHead(404, {'Content-Type': 'text/html'});
-                                return res.end('Todo: this should be some standardized 404 page');
-                            }
-                            res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
-                            res.end(data.toString());
-                        });
+            // This is the handler for any web page. There are URL objects in the database that we look up. So basically every
+            // URL on the site has its own URL object which contains the id to the model object, and a parent chain of other
+            // URL objects so we can say, build a breadcrumb trail
+            couch.getDoc(dbPath, function(err, urlObject) {
+                if(err) {
+                    if(err.error == 'not_found') {
+                        log.warn('Non-existant page was requested (404): `'+dbPath+'`: ',err);
+                        res.writeHead(404, {'Content-Type': 'text/html'});
+                        res.end('Todo: This should be some standardized 404 page');
                     } else {
-                        res.writeHead(200, {'Content-Type': utils.guessContentType(req.url)});
-                        res.end(data.toString());
+                        log.error('Error fetching URL view `'+dbPath+'`: ',err);
+                        res.writeHead(500, {'Content-Type': 'text/html'});
+                        res.end('Internal server errrrrrror');
                     }
-                });
-            } else {
-                // This is the handler for any web page. There are URL objects in the database that we look up. So basically every
-                // URL on the site has its own URL object which contains the id to the model object, and a parent chain of other
-                // URL objects so we can say, build a breadcrumb trail
-                couch.getDoc(dbPath, function(err, urlObject) {
-                    if(err) {
-                        if(err.error == 'not_found') {
-                            log.warn('Non-existant page was requested (404): `'+dbPath+'`: ',err);
-                            res.writeHead(404, {'Content-Type': 'text/html'});
-                            res.end('Todo: This should be some standardized 404 page');
-                        } else {
-                            log.error('Error fetching URL view `'+dbPath+'`: ',err);
+                } else {
+                    couch.getDoc(urlObject.reference, function(err, page) {
+                        if(err) {
+                            log.error('!!! URL object found but no page data found ('+urlObject.reference+')!: ',err);
                             res.writeHead(500, {'Content-Type': 'text/html'});
                             res.end('Internal server errrrrrror');
+                        } else {
+                            server.serveTemplate(urlObject, page, function(err, parsed) {
+                                if(err) {
+                                    log.error('Error serving template for `'+req.url+'` (CouchDB key `'+dbPath+'`): ',err);
+                                    res.writeHead(500, {'Content-Type': 'text/html'});
+                                    res.end('Internal server errrrrrror');
+                                } else {
+                                    res.writeHead(200, {'Content-Type': 'text/html'});
+                                    res.end(parsed);
+                                }
+                            });
                         }
-                    } else {
-                        couch.getDoc(urlObject.reference, function(err, page) {
-                            if(err) {
-                                log.error('!!! URL object found but no page data found ('+urlObject.reference+')!: ',err);
-                                res.writeHead(500, {'Content-Type': 'text/html'});
-                                res.end('Internal server errrrrrror');
-                            } else {
-                                server.serveTemplate(urlObject, page, function(err, parsed) {
-                                    if(err) {
-                                        log.error('Error serving template for `'+req.url+'` (CouchDB key `'+dbPath+'`): ',err);
-                                        res.writeHead(500, {'Content-Type': 'text/html'});
-                                        res.end('Internal server errrrrrror');
-                                    } else {
-                                        res.writeHead(200, {'Content-Type': 'text/html'});
-                                        res.end(parsed);
-                                    }
-                                });
-                            }
-                        });
-
-                    }
-                });
-            }
+                    });
+                }
+            });
         });
 
         // Tell our template library what theme to use
