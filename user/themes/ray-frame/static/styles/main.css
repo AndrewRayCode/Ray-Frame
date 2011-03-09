@@ -33,8 +33,8 @@ a {outline:0 none;}
 #navigation ul {list-style:none; margin:0; padding:0; float:left; height:40px;}
 #navigation ul li {margin:26px 27px 0 0; display:block; float:left;}
 #navigation ul li a {text-decoration:none; color:#fff; font-size:17pt; text-shadow: 1px 1px 1px #658936;}
-#navigation ul li.selected {background:transparent url(/layout/header_tab_edges.png) no-repeat top left scroll; margin:7px 6px 0 -17px; padding:0 -10px 0 -10px; height:53px;}
-#navigation ul li.selected span {display:block; height:53px; background:transparent url(/layout/header_tab_edges.png) no-repeat top right scroll;}
+#navigation ul li.selected {background:transparent url(/layout/header_tab_left.png) no-repeat top left scroll; margin:7px 6px 0 -17px; padding:0 -10px 0 -10px; height:53px;}
+#navigation ul li.selected span {display:block; height:53px; background:transparent url(/layout/header_tab_right.png) no-repeat top right scroll;}
 #navigation ul li.selected a {text-shadow:1px 1px 1px #aaeecc; color:#59361f; padding:18px 5px 0; margin:0 17px; text-decoration:underline; display:block; height:53px; background:transparent url(/layout/header_tab_center.png) repeat-x top left scroll;}
 #navigation ul li a:hover {text-decoration:underline;}
 
