@@ -73,13 +73,13 @@ exports.requestURL = function(self, assert, config_or_server, options, cb) {
 function testCase(suite){
     suite.setUp =  function(test){
         this.rayframe = null;
-        test.done();
+        test();
     };
     suite.tearDown = function(test){
         if(this.rayframe) {
             this.rayframe.express.close();
         }
-        test.done();
+        test();
     };
     return testCase.super_.call(this, suite);
 }
