@@ -124,7 +124,7 @@ exports.addChildById = function(couch, par, field, child, parUrl, cb) {
 	utils.addChild(couch, '_id', par, field, child, parUrl, cb);
 };
 
-exports.addChild= function(couch, useForName, par, field, child, parUrl, cb) {
+exports.addChild = function(couch, useForName, par, field, child, parUrl, cb) {
 	couch.saveDoc(child, function(err, saved) {
 		if(err) {
 			return cb(err);

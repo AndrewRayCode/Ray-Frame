@@ -231,6 +231,9 @@ exports.renderListElement = function(index, urlObj, view_template, listData, ele
     });
 };
 
+// Get the actual items from the database, returns an array. If newItem is specified, it will be added to the end
+// of the returned array, which is kind of silly and I think TODO: this method should be refactored, or at least
+// better named. Plus, wouldn't we want to add newItem to the BEGINNING of the list?
 exports.getListItems = function(instructions, pageData, newItem, cb) {
     if(!cb) {
         cb = newItem;
@@ -240,8 +243,7 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
         couch.view('master', view, function(err, result) {
             if(err) {
                 log.error('Error fetching list design document in couch: ',err);
-                cb(err);
-                return;
+                return cb(err);
             }
             var docs = [];
             for(var x=0, l=result.rows.length; x<l; x++) {
@@ -256,37 +258,8 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
             cb(null, docs);
         });
     }
-    if(instructions.type) {
-        var view = templater.getViewName(instructions);
-        couch.getDesign('master', function(err, doc) {
-            if(err) {
-                log.error('There was a fatal error, master design not found!', err);
-                cb(err);
-                return;
-            }
-            if(!doc.views[view]) {
-                doc.views[view] = {
-                    map: utils.formatFunction(function(doc) {
-                        if(doc.template) {
-                            var views = $1;
-                            for(var x=0; x<views.length; x++) {
-                                if(doc.template == views[x] + '.html') {
-                                    emit(views[x], doc);
-                                    break;
-                                }
-                            }
-                        }
-                    }, [sys.inspect(instructions.type.split(','))])
-                };
-
-                couch.saveDesign('master', doc, function(err) {
-                    queryView();
-                });
-            } else {
-                queryView();
-            }
-        });
-    } else {
+    // Only user sorts cause documents to get an array of ids
+    if(instructions.sort == 'user') {
         var field = pageData[instructions.field];
 
         if(field && field.length) {
@@ -310,6 +283,38 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
             // for where this array of ids is actually updated. Is this a good idea? You tell me.
             cb(null, newItem ? [newItem] : []);
         }
+    // For everything else a view is made
+    } else {
+        var view = templater.getViewName(instructions);
+        couch.getDesign('master', function(err, doc) {
+            if(err) {
+                log.error('There was a fatal error, master design not found!', err);
+                cb(err);
+                return;
+            }
+            // TODO: Update dis
+            if(!doc.views[view]) {
+                doc.views[view] = {
+                    map: utils.formatFunction(function(doc) {
+                        if(doc.template) {
+                            var views = $1;
+                            for(var x=0; x<views.length; x++) {
+                                if(doc.template == views[x] + '.html') {
+                                    emit(views[x], doc);
+                                    break;
+                                }
+                            }
+                        }
+                    }, [sys.inspect(instructions.type.split(','))])
+                };
+
+                couch.saveDesign('master', doc, function(err) {
+                    queryView();
+                });
+            } else {
+                queryView();
+            }
+        });
     }
 };
 
