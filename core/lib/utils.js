@@ -65,7 +65,8 @@ exports.getOrCreate = function(couch, path, template, cb) {
 };
 
 exports.formatFunction = function(func, replaces) {
-    func = func.toString(), l = replaces.length;
+    func = func.toString();
+    var l = replaces.length;
     for(var x=0; x<l; x++) {
         func = func.replace('$'+(x+1), replaces[x]);
     }

@@ -9,7 +9,6 @@ var templater = module.exports,
     utils = require('./utils'),
 	adminFiles = '<script src="/admin/jquery-1.5.min.js"></script><script src="/admin/admin_functions.js"></script><link rel="stylesheet" href="/admin/admin.css" />',
     transientFunctions = '',
-    // TODO: oh god I am repeating myself from server.js, fix this shenanegins
     prefixii,
     couch,
     theme;

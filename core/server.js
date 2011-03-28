@@ -32,7 +32,7 @@ exports.createServer = function(options, cb) {
     this.couch = couch;
     this.express = express;
 
-    log.error( __dirname + '/../' + user_static);
+    //log.error( __dirname + '/../' + user_static);
 
     express.configure(function(){
         express.use(express_lib.bodyParser());
