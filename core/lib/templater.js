@@ -299,14 +299,14 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
                                 }
                             }
                         }
-                    }, [sys.inspect(instructions.type.split(','))])
+                    }, instructions.type.split(','))
                 };
 
                 couch.saveDesign('master', doc, function(err) {
-                    queryView();
+                    queryView(pageData._id);
                 });
             } else {
-                queryView();
+                queryView(pageData._id);
             }
         });
     }

@@ -53,8 +53,8 @@ exports.getOrCreate = function(couch, path, template, cb) {
             var d = new Date(),
             new_obj = {
                 template: template, 
-                creationDate: d,
-                lastModified: d
+                modified: d,
+                created: d
             };
 			// TODO: Here we create the db entry even if the template file does not exist.
 			// We should check for it and error up there if it doesn't exist
@@ -69,11 +69,10 @@ exports.getOrCreate = function(couch, path, template, cb) {
 	});
 };
 
-exports.formatFunction = function(func, replaces) {
+exports.formatFunction = function(func) {
     func = func.toString();
-    var l = replaces.length;
-    for(var x=0; x<l; x++) {
-        func = func.replace('$'+(x+1), replaces[x]);
+    for(var x=1, l=arguments.length; x<l; x++) {
+        func = func.replace('$'+(x+1), sys.inspect(arguments[x]));
     }
     return func;
 };
@@ -162,14 +161,14 @@ exports.addChild = function(couch, useForName, par, field, child, parUrl, cb) {
 
 exports.saveDoc = function(couch, id, doc, cb) {
     // TODO: Could do versioning of fields here
-    doc.lastModified = new Date();
+    doc.modified = new Date();
     utils.saveDoc(couch, doc._id, doc, cb);
 };
 
 exports.bulkDocs = function(couch, docs, cb) {
     var d = new Date();
     docs.forEach(function(doc) {
-        doc.lastModified = d;
+        doc.modified = d;
     });
     couch.bulkDocs({docs: docs}, cb);
 };

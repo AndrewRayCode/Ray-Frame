@@ -30,7 +30,7 @@ exports.functions = {
             var instructions = templater.getInstructions(req.body.plip);
 
             // Save a temporary document in couch, let it create the key
-            utils.saveDoc(couch, {template: req.body.view}, function(err, saved) {
+            utils.saveDoc(couch, {template: req.body.view, parent_id: pageData._id}, function(err, saved) {
                 if(err) {
                     log.error('Error saving list item: ',err);
                     res.send({status:'failure', message:err});
