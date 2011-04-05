@@ -169,11 +169,11 @@ exports.resetDatabase = function(couch, callback) {
                         }
                     }, function(err) {
                         // Create our homepage object and url object for it
-                        couch.bulkDocs({docs: [
+                        utils.bulkDocs([
                             // Bulkdocs takes _id, not key
                             {_id:'root', template:'index.html', title:'hello'}, // root is special case. Let couch name other keys for page objects
                             {_id:'global', template:'global.html'}, // another by convention
-                            {_id:utils.sanitizeUrl('/'), reference:'root', parents:[]}]}, // TODO: Should URLs get their own database, or view?
+                            {_id:utils.sanitizeUrl('/'), reference:'root', parents:[]}], // TODO: Should URLs get their own database, or view?
                             function(err) {
                                 log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
                                 callback(err);

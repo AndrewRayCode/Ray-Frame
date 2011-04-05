@@ -50,10 +50,15 @@ exports.getOrCreate = function(couch, path, template, cb) {
 	couch.getDoc(path, function(err, firstres) {
 		if(err) {
 			// This thing is not yet in the database. Let's put it there!
-			var new_obj = {template: template};
+            var d = new Date(),
+            new_obj = {
+                template: template, 
+                creationDate: d,
+                lastModified: d
+            };
 			// TODO: Here we create the db entry even if the template file does not exist.
 			// We should check for it and error up there if it doesn't exist
-			couch.saveDoc(path, new_obj, function(err, added) {
+			utils.saveDoc(couch, path, new_obj, function(err, added) {
                 new_obj._id = added.id;
                 new_obj.rev = added.rev;
 				cb(err, new_obj);
@@ -125,7 +130,7 @@ exports.addChildById = function(couch, par, field, child, parUrl, cb) {
 };
 
 exports.addChild = function(couch, useForName, par, field, child, parUrl, cb) {
-	couch.saveDoc(child, function(err, saved) {
+	utils.saveDoc(couch, child, function(err, saved) {
 		if(err) {
 			return cb(err);
 		}
@@ -146,11 +151,25 @@ exports.addChild = function(couch, useForName, par, field, child, parUrl, cb) {
 		var arr = par[field];
 		par[field] = arr && arr.length ? arr.concat(child._id) : [child._id];
 
-		couch.bulkDocs({docs: [url, par]}, function(err, result) {
+		utils.bulkDocs(couch, [url, par], function(err, result) {
 			if(err) {
 				cb(err);
 			}
 			cb(null, child);
 		});
 	});
+};
+
+exports.saveDoc = function(couch, id, doc, cb) {
+    // TODO: Could do versioning of fields here
+    doc.lastModified = new Date();
+    utils.saveDoc(couch, doc._id, doc, cb);
+};
+
+exports.bulkDocs = function(couch, docs, cb) {
+    var d = new Date();
+    docs.forEach(function(doc) {
+        doc.lastModified = d;
+    });
+    couch.bulkDocs({docs: docs}, cb);
 };

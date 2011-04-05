@@ -30,7 +30,7 @@ exports.functions = {
             var instructions = templater.getInstructions(req.body.plip);
 
             // Save a temporary document in couch, let it create the key
-            couch.saveDoc({template: req.body.view}, function(err, saved) {
+            utils.saveDoc(couch, {template: req.body.view}, function(err, saved) {
                 if(err) {
                     log.error('Error saving list item: ',err);
                     res.send({status:'failure', message:err});
@@ -90,7 +90,7 @@ exports.functions = {
                     };
 
                     // Save the parent, the new item, and the new url object
-                    couch.bulkDocs({docs: [pageData, docToAdd, url]}, function(err, result) {
+                    utils.bulkDocs(couch, [pageData, docToAdd, url], function(err, result) {
                         if(err) {
                             return res.send({status:'failure', message:err.message});
                         }
@@ -147,12 +147,11 @@ exports.functions = {
 
             couch.getDoc(parts[0], function(err, doc) {
                 doc[parts[1]] = req.body.value;
-                couch.saveDoc(doc._id, doc, function(err, dbres) {
+                utils.saveDoc(couch, doc._id, doc, function(err, dbres) {
                     if(err) {
-                        res.send({status:'failure', message:err});
-                    } else {
-                        res.send({status:'success', new_value:req.body.value});
+                        return res.send({status:'failure', message:err});
                     }
+                    res.send({status:'success', new_value:req.body.value});
                 });
             });
         },
@@ -161,12 +160,11 @@ exports.functions = {
 
             couch.getDoc(parts[0], function(err, doc) {
                 doc[parts[1]] = req.body.value;
-                couch.saveDoc(doc._id, doc, function(err, dbres) {
+                utils.saveDoc(couch, doc._id, doc, function(err, dbres) {
                     if(err) {
-                        res.send({status:'failure', message:err});
-                    } else {
-                        res.send({status:'success', rendered_item:req.body.value});
+                        return res.send({status:'failure', message:err});
                     }
+                    res.send({status:'success', rendered_item:req.body.value});
                 });
             });
         }

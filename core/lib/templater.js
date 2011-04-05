@@ -239,8 +239,9 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
         cb = newItem;
         newItem = null;
     }
-    function queryView() {
-        couch.view('master', view, function(err, result) {
+    function queryView(id) {
+        // Call the view with ?key=parent_id to get all children
+        couch.view('master', view, {key: id}, function(err, result) {
             if(err) {
                 log.error('Error fetching list design document in couch: ',err);
                 return cb(err);
@@ -249,12 +250,6 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
             for(var x=0, l=result.rows.length; x<l; x++) {
                 docs.push(result.rows[x].value);
             }
-            // It looks like since we already have a stub in the db, re-adding it to the list makes it show up twice
-            /*
-            if(newItem) {
-                docs.push(newItem);
-            }
-            */
             cb(null, docs);
         });
     }
@@ -292,7 +287,6 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
                 cb(err);
                 return;
             }
-            // TODO: Update dis
             if(!doc.views[view]) {
                 doc.views[view] = {
                     map: utils.formatFunction(function(doc) {
@@ -300,7 +294,7 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
                             var views = $1;
                             for(var x=0; x<views.length; x++) {
                                 if(doc.template == views[x] + '.html') {
-                                    emit(views[x], doc);
+                                    emit(doc.parent_id, doc);
                                     break;
                                 }
                             }
