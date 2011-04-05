@@ -468,7 +468,9 @@ exports.listTemplates = function(options, cb) {
 };
 
 exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
+    log.warn('starting recurse');
 	templater.recurseTemplateData(urlObj, pageData, canHaveGlobal, function(err, parsed) {
+        log.error('infinite lap?');
 		if(err) {
 			cb(err);
 		}
