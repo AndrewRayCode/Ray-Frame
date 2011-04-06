@@ -239,7 +239,7 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
         cb = newItem;
         newItem = null;
     }
-    function queryView(id) {
+    function queryView(view, id) {
         // Call the view with ?key=parent_id to get all children
         couch.view('master', view, {key: id}, function(err, result) {
             if(err) {
@@ -273,40 +273,48 @@ exports.getListItems = function(instructions, pageData, newItem, cb) {
                 cb(null, docs);
             });
         } else {
-            // We are note updating the parent's list with the new id here, we are just temporarly storing it to render the list. The new item
+            // We are not updating the parent's list with the new id here, we are just temporarly storing it to render the list. The new item
             // exists in the database without a title, but if the user cancels or leaves the page then we have more work to do. See saveListItem
             // for where this array of ids is actually updated. Is this a good idea? You tell me.
             cb(null, newItem ? [newItem] : []);
         }
     // For everything else a view is made
     } else {
-        var view = templater.getViewName(instructions);
         couch.getDesign('master', function(err, doc) {
             if(err) {
                 log.error('There was a fatal error, master design not found!', err);
-                cb(err);
-                return;
+                return cb(err);
             }
+            var view = templater.getViewName(instructions);
             if(!doc.views[view]) {
-                doc.views[view] = {
-                    map: utils.formatFunction(function(doc) {
-                        if(doc.template) {
-                            var views = $1;
-                            for(var x=0; x<views.length; x++) {
-                                if(doc.template == views[x] + '.html') {
-                                    emit(doc.parent_id, doc);
-                                    break;
+                if(instructions.type) {
+                    doc.views[view] = {
+                        map: utils.formatFunction(function(doc) {
+                            if(doc.template) {
+                                var views = $1;
+                                for(var x=0; x<views.length; x++) {
+                                    if(doc.template == views[x] + '.html') {
+                                        emit(doc.parent_id, doc);
+                                        break;
+                                    }
                                 }
                             }
+                        }, instructions.type.split(','))
+                    };
+                } else {
+                    doc.views[view] = {
+                        map: function(doc) {
+                            if(doc.template) {
+                                emit(doc.parent_id, doc);
+                            }
                         }
-                    }, instructions.type.split(','))
-                };
-
+                    };
+                }
                 couch.saveDesign('master', doc, function(err) {
-                    queryView(pageData._id);
+                    queryView(view, pageData._id);
                 });
             } else {
-                queryView(pageData._id);
+                queryView(view, pageData._id);
             }
         });
     }
@@ -583,5 +591,5 @@ exports.recurseTemplateData = function(urlObj, pageData, canHaveGlobal, cb) {
 };
 
 exports.getViewName = function(instructions) {
-    return 'type='+instructions.type;
+    return 'type='+(instructions.type || 'all');
 };
