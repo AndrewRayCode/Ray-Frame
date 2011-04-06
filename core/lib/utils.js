@@ -162,7 +162,7 @@ exports.addChild = function(couch, useForName, par, field, child, parUrl, cb) {
 exports.saveDoc = function(couch, id, doc, cb) {
     // TODO: Could do versioning of fields here
     doc.modified = new Date();
-    couch.saveDoc(couch, doc._id, doc, cb);
+    couch.saveDoc(id, doc, cb);
 };
 
 exports.bulkDocs = function(couch, docs, cb) {

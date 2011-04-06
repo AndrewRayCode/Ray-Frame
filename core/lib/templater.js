@@ -468,9 +468,7 @@ exports.listTemplates = function(options, cb) {
 };
 
 exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
-    log.warn('starting recurse');
 	templater.recurseTemplateData(urlObj, pageData, canHaveGlobal, function(err, parsed) {
-        log.error('infinite lap?');
 		if(err) {
 			cb(err);
 		}
@@ -500,8 +498,7 @@ exports.recurseTemplateData = function(urlObj, pageData, canHaveGlobal, cb) {
     // First read the template from the templates directory
     templater.readTemplate(pageData.template, function(err, f) {
         if(err) {
-            cb('Template not found for `'+sys.inspect(pageData)+'`: '+err.message);
-            return;
+            return cb('Template not found for `'+sys.inspect(pageData)+'`: '+err.message);
         }
 
         // Append the admin files and save the compiled page
