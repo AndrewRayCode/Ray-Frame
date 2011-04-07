@@ -375,9 +375,10 @@ exports.getData = function(urlObject, plip, pageData, cb) {
 			// should take template name
 			pageData.template = instructions.field;
 			templater.recurseTemplateData(urlObject, pageData, false, cb);
+        // Global include, so any pages that include this file will show the same result
 		} else {
 			var lookup = 'includes'+instructions.field;
-			utils.getOrCreate(couch, lookup, instructions.field, function(err, obj) {
+			utils.getOrCreate(couch, 'includes'+instructions.field, instructions.field, function(err, obj) {
 				if(err) {
 					return cb(err);
 				}
