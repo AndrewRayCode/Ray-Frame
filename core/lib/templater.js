@@ -17,8 +17,7 @@ var templater = module.exports,
 exports.modelReplaces = /\{\{\S+?\}\}/g;
 
 // Set variables we need
-exports.setReferences = function(role, db, pre) {
-    isAdmin = role;
+exports.setReferences = function(db, pre) {
     couch = db;
 	prefixii = pre;
 };
@@ -209,7 +208,7 @@ exports.renderListElement = function(index, urlObj, view_template, listData, ele
         var matches = f.match(templater.modelReplaces);
         if(matches) {
             // Replace the {{ .. }} with whatever it's supposed to be
-            templater.getData(urlObj, matches[0], pageData, function(err, val) {
+            templater.getData(user, urlObj, matches[0], pageData, function(err, val) {
                 if(err) {
                     cb(err);
                 } else {
@@ -352,7 +351,7 @@ exports.renderList = function(items, instructions, urlObj, pageData, cb) {
 };
 
 // Get the data from an object and replace it into its proper plip, like {{ }}. Also handles includes
-exports.getData = function(urlObject, plip, pageData, cb) {
+exports.getData = function(user, urlObject, plip, pageData, cb) {
 	var instructions = templater.getInstructions(plip),
         val = pageData[instructions.field] || '';
 
@@ -374,7 +373,7 @@ exports.getData = function(urlObject, plip, pageData, cb) {
 			// the template field of the current db object with the include's template and render it. Maybe recurseTemplateDir
 			// should take template name
 			pageData.template = instructions.field;
-			templater.recurseTemplateData(urlObject, pageData, false, cb);
+			templater.recurseTemplateData(user, urlObject, pageData, false, cb);
         // Global include, so any pages that include this file will show the same result
 		} else {
 			var lookup = 'includes'+instructions.field;
@@ -382,10 +381,10 @@ exports.getData = function(urlObject, plip, pageData, cb) {
 				if(err) {
 					return cb(err);
 				}
-				templater.recurseTemplateData(urlObject, obj, false, cb);
+				templater.recurseTemplateData(user, urlObject, obj, false, cb);
 			});
 		}
-	} else if(isAdmin) {
+	} else if(user.isAdmin) {
         var edit_id = (pageData._id || pageData.id)+':'+instructions.raw,
             callback = function(err, val) {
                 cb(err, '<span class="edit_list" id="'+edit_id+'">'+val+'</span>');
@@ -476,12 +475,12 @@ exports.listTemplates = function(options, cb) {
     });
 };
 
-exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
-	templater.recurseTemplateData(urlObj, pageData, canHaveGlobal, function(err, parsed) {
+exports.parseTemplate = function(user, urlObj, pageData, canHaveGlobal, cb) {
+	templater.recurseTemplateData(user, urlObj, pageData, canHaveGlobal, function(err, parsed) {
 		if(err) {
 			cb(err);
 		}
-		if(isAdmin) {
+		if(user.isAdmin) {
 			// Add admin files to front end, and pass variables about current ids for page context. TODO: This is shittacular on so many levels
 			// TODO: Also, uglify some shit up in this bitch
 			parsed = parsed.replace('</body>', function() {
@@ -502,7 +501,7 @@ exports.parseTemplate = function(urlObj, pageData, canHaveGlobal, cb) {
 };
 
 // Put the template into compiled and return the parsed data
-exports.recurseTemplateData = function(urlObj, pageData, canHaveGlobal, cb) {
+exports.recurseTemplateData = function(user, urlObj, pageData, canHaveGlobal, cb) {
     var f, child, globalData;
     // First read the template from the templates directory
     templater.readTemplate(pageData.template, function(err, f) {
@@ -525,7 +524,7 @@ exports.recurseTemplateData = function(urlObj, pageData, canHaveGlobal, cb) {
                 if(instr.field == 'child') {
                     // If it has an attribute like child.title
                     if(instr.attr) {
-                        templater.getData(urlObj, matches[0].replace('child.', ''), pageData, function(err, val) {
+                        templater.getData(user, urlObj, matches[0].replace('child.', ''), pageData, function(err, val) {
                             // TODO: Man, you know what, I'd rather just throw this junk, this doesn't feel DRY
                             if(err) {
                                 return cb(err);
@@ -541,7 +540,7 @@ exports.recurseTemplateData = function(urlObj, pageData, canHaveGlobal, cb) {
                 } else {
                     // For a global file there won't be a URL object, so for generating links on that page
                     // just fake it as the home page, _id is all we need for now
-					templater.getData({_id: utils.sanitizeUrl('/')}, matches[0], globalData, function(err, val) {
+					templater.getData(user, {_id: utils.sanitizeUrl('/')}, matches[0], globalData, function(err, val) {
                         if(err) {
                             cb(err);
                         } else {
@@ -560,7 +559,7 @@ exports.recurseTemplateData = function(urlObj, pageData, canHaveGlobal, cb) {
             var matches = f.match(templater.modelReplaces);
             if(matches) {
                 // Replace the {{ .. }} with whatever it's supposed to be
-                templater.getData(urlObj, matches[0], pageData, function(err, val) {
+                templater.getData(user, urlObj, matches[0], pageData, function(err, val) {
                     if(err) {
                         cb(err);
                     } else {

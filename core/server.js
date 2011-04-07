@@ -4,17 +4,17 @@ var http = require('http'),
 	path = require('path'),
 	log = require('./lib/logger'),
 	utils = require('./lib/utils'),
+    auth = require('connect-auth'),
+    authUtils = require('./lib/authUtils'),
 	templater = require('./lib/templater'),
     accessors = require('./access_functions'),
 	express_lib = require('express'),
     server = module.exports,
     // TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
     prefixii = {
-		admin: '/access', // Change for one more quip of security
-		'public': '/public'
-	},
-    // TODO: Authentication with login form, maybe user level permissions
-    isAdmin = 1;
+		admin: 'access', // Change for one more quip of security
+		'public': 'public'
+    };
 
 exports.createServer = function(options, cb) {
     log.log_level = 'info';
@@ -38,7 +38,7 @@ exports.createServer = function(options, cb) {
         express.use(express_lib.bodyParser());
         express.use(express_lib.cookieParser());
         express.use(express_lib.session({secret: options.secret}));
-        express.use(express_lib.basicAuth(auth));
+        express.use(auth(authUtils()));
 
         express.use(express_lib['static'](__dirname + '/../' + user_static));
         express.use(express_lib['static'](__dirname + '/../' + core_static));
@@ -55,6 +55,7 @@ exports.createServer = function(options, cb) {
         express.get(/.*/, function(req, res) {
             var urlPath = req.url.split('/'),
                 dbPath = utils.sanitizeUrl(req.url);
+            utils.authSession(req);
 
             // This is the handler for any web page. There are URL objects in the database that we look up. So basically every
             // URL on the site has its own URL object which contains the id to the model object, and a parent chain of other
@@ -77,7 +78,7 @@ exports.createServer = function(options, cb) {
                             res.writeHead(500, {'Content-Type': 'text/html'});
                             res.end('Internal server errrrrrror');
                         } else {
-                            server.serveTemplate(urlObject, page, function(err, parsed) {
+                            server.serveTemplate(req.session.user, urlObject, page, function(err, parsed) {
                                 if(err) {
                                     log.error('Error serving template for `'+req.url+'` (CouchDB key `'+dbPath+'`): ',err);
                                     res.writeHead(500, {'Content-Type': 'text/html'});
@@ -114,7 +115,7 @@ exports.createServer = function(options, cb) {
                 }
 
                 templater.addTransientFunction('templater.getInstructions');
-                templater.setReferences(isAdmin, couch, prefixii);
+                templater.setReferences(couch, prefixii);
 
                 server.setUpAccess(express);
 
@@ -170,7 +171,9 @@ exports.resetDatabase = function(couch, callback) {
                             // Bulkdocs takes _id, not key
                             {_id:'root', template:'index.html', title:'hello'}, // root is special case. Let couch name other keys for page objects
                             {_id:'global', template:'global.html'}, // another by convention
-                            {_id:utils.sanitizeUrl('/'), reference:'root', parents:[]}], // TODO: Should URLs get their own database, or view?
+                            {_id:'login', template:'rayframe_login.html'}, // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)
+                            {_id:utils.sanitizeUrl('/'), reference:'root', parents:[]}, // TODO: Should URLs get their own database, or view?
+                            {_id:utils.sanitizeUrl('/'+prefixii.admin), reference:'login', parents:[]}],
                             function(err) {
                                 log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
                                 callback(err);
@@ -196,9 +199,9 @@ exports.setUpAccess = function(express) {
         var funcs = accessors.functions[role];
 
         function createPost(role, funcs, funcName) {
-			express.post((prefixii[role] || '')+'/'+funcName, function(req, res) {
-                // TODO: Determine authenticaiton here. Session / cookie based? All higher level roles have access to lower level roles
-                if(isAdmin) {
+			express.post('/'+(prefixii[role] || '')+'/'+funcName, function(req, res) {
+                utils.authSession(req);
+                if(req.sesison.user.isAdmin) {
                     exports.couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
                         funcs[funcName](req, res, result.rows[0].doc, result.rows[1].doc, exports.couch);
                     });
@@ -213,12 +216,18 @@ exports.setUpAccess = function(express) {
             }
         }
     }
+    express.get('/'+prefixii[admin], function(req, res) {
+        exports.serveTemplate = function(user, urlObj, pageData, cb) {
+        }
+    });
+    express.post('/'+prefixii[admin], function(req, res) {
+    });
 };
 
 // Serve a template from cache or get new version
-exports.serveTemplate = function(urlObj, pageData, cb) {
+exports.serveTemplate = function(user, urlObj, pageData, cb) {
 	// TODO: Right now we are forcing the recreation of the template from disk. Original plan was to store those parsed files in compiled/ directory. Look into this
-	templater.parseTemplate(urlObj, pageData, true, cb);
+	templater.parseTemplate(user, urlObj, pageData, true, cb);
     
 	//try {
 		//var f = fs.readFileSync('compiled/'+obj.template);

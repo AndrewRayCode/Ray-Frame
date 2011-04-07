@@ -172,3 +172,12 @@ exports.bulkDocs = function(couch, docs, cb) {
     });
     couch.bulkDocs({docs: docs}, cb);
 };
+
+exports.authSession = function(req) {
+    if(!req.session.user) {
+        req.session.user = {
+            name: 'Anonymous',
+            auth: false
+        };
+    }
+};
