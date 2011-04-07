@@ -36,15 +36,12 @@ exports.createServer = function(options, cb) {
 
     express.configure(function(){
         express.use(express_lib.bodyParser());
+        express.use(express_lib.cookieParser());
+        express.use(express_lib.session({secret: options.secret}));
+        express.use(express_lib.basicAuth(auth));
 
         express.use(express_lib['static'](__dirname + '/../' + user_static));
         express.use(express_lib['static'](__dirname + '/../' + core_static));
-
-        /*express.use(express_lib['static']({
-            root: __dirname + '/../' + user_static,
-            secondary: __dirname + '/../' + core_static
-        }));
-        */
     });
 
     express.error(function(err, req, res) {
@@ -230,3 +227,7 @@ exports.serveTemplate = function(urlObj, pageData, cb) {
 		//return parseTemplate(obj);
 	//}
 };
+
+function auth(user, pass, cb) {
+    cb(true);
+}
