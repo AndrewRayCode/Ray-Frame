@@ -77,6 +77,7 @@ exports.formatFunction = function(func) {
     return func;
 };
 
+// Recursive readdir function
 exports.readDir = function(start, callback) {
     // Use lstat to resolve symlink if we are passed a symlink
     fs.lstat(start, function(err, stat) {

@@ -22,12 +22,39 @@ exports.setReferences = function(db, pre) {
 	prefixii = pre;
 };
 
-exports.setTheme = function(str, cb) {
+exports.cacheTheme = function(str, cb) {
     theme = str + '/';
-    templater.updateSymLinks(function(err) {
-        cb(err);
+    
+    templater.listAllThemeTemplates(function(err, files) {
+        if(err) {
+            return cb(err);
+        }
+        var l = files.length,
+            total = l;
+
+        function process(filepath) {
+            var name = path.basename(filepath);
+
+            fs.readFile(filepath, function(err, contents) {
+                templater.buildTemplateString(contents, function(err, funcStr) {
+                    templater.templateCache[name] = new Function('objid', 'locals', funcStr);
+                });
+            });
+        }
+        while(l--) {
+            process(filepath);
+        }
     });
 };
+
+// Take the contents of a template and make an executable function for it. If we have any lists we need functions to get that list data,
+// potentially recursing. Make a getdata function for each recursion and wrap it around the main output, with a way for that block to know
+// what local data to use
+exports.buildTemplateString = function(template, cb) {
+
+};
+
+exports.templateCache = {};
 
 // Templates can be stored in any folder structure the user wants in themes/theme/templates. For faster
 // template lookup, symlink all the template names to /tmp/tlinks so we can just know that "blog.html" lives
@@ -433,13 +460,13 @@ exports.readTemplate = function(name, cb) {
     });
 };
 
+// Recursively read all template files from the current theme //TODO: I feel like theme shouldn't be global
 exports.listAllThemeTemplates = function(cb) {
     utils.readDir(__dirname + '/' + themes_dir + theme + 'templates/', function(err, data) {
         if(err) {
             return cb(err);
         }
         var templates = [], f;
-        // Filter out VIM swap files for example
         for(var x=0; x<data.files.length; x++) {
             f = data.files[x];
             // template must be .html files (not say .swp files which could be in that dir)

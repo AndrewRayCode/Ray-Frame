@@ -95,7 +95,7 @@ exports.createServer = function(options, cb) {
         });
 
         // Tell our template library what theme to use
-        templater.setTheme(theme, function(err) {
+        templater.cacheTheme(theme, function(err) {
             if(err) {
                 return log.error('Error setting theme!: ',err);
             }
@@ -216,11 +216,11 @@ exports.setUpAccess = function(express) {
             }
         }
     }
-    express.get('/'+prefixii[admin], function(req, res) {
+    express.get('/'+prefixii.admin, function(req, res) {
         exports.serveTemplate = function(user, urlObj, pageData, cb) {
-        }
+        };
     });
-    express.post('/'+prefixii[admin], function(req, res) {
+    express.post('/'+prefixii.admin, function(req, res) {
     });
 };
 
