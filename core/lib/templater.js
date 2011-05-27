@@ -30,28 +30,48 @@ exports.cacheTheme = function(str, cb) {
             return cb(err);
         }
         var l = files.length,
+            processed = 0,
             total = l;
 
         function process(filepath) {
-            var name = path.basename(filepath);
-
             fs.readFile(filepath, function(err, contents) {
                 templater.buildTemplateString(contents, function(err, funcStr) {
-                    templater.templateCache[name] = new Function('objid', 'locals', funcStr);
+                    templater.saveTemplateString(path.basename(files), funcStr);
+                    if(++processed == total) {
+                        cb();
+                    }
                 });
             });
         }
         while(l--) {
-            process(filepath);
+            process(files[l]);
         }
     });
+};
+
+exports.saveTemplateString = function(name, funcStr) {
+    // builds: name(objid, locals, cb) { ... funcStr ... }
+    return templater.templateCache[name] = new Function('objid', 'locals', 'cb', funcStr);
 };
 
 // Take the contents of a template and make an executable function for it. If we have any lists we need functions to get that list data,
 // potentially recursing. Make a getdata function for each recursion and wrap it around the main output, with a way for that block to know
 // what local data to use
 exports.buildTemplateString = function(template, cb) {
+    // function(objid, locals, cb) {...}
 
+    var output = "var str = '';",
+        matches,
+        plipCount;
+    //we want to render a page like <div>{{title}}</div>
+    //that becomes function(objid, locals, cb) {templater.getObjects({id: objid}, function(objs) { var str = '<div>' + objs[objid].title + '</div>' }
+    // get all plips
+    // parse plips into javascript commands to execute (recurse)
+    // replace html blocks with strings that are added to str
+    if(matches = f.match(templater.modelReplaces && plipCount = matches.length) {
+    }
+    output += "cb(null,str)";
+    cb(null, output);
 };
 
 exports.templateCache = {};
@@ -60,75 +80,75 @@ exports.templateCache = {};
 // template lookup, symlink all the template names to /tmp/tlinks so we can just know that "blog.html" lives
 // at wherever it lives. One obvious issue is templates can't share names even in subfolders. TODO: Address that issue 
 // but only if we need to. It may not be a problem, see how websites implement template names
-exports.updateSymLinks = function(cb) {
-    var linked = 0,
-        total = 0,
-        hasErrored = false,
-        totalFilesToDelete = 0;
-        filesDeleted = 0;
-    function linkFile(file) {
-        if(hasErrored) {
-            return;
-        }
-        var symlink_file = template_links_dir + path.basename(file);
-        //log.warn('symlinking ',file,' to ',symlink_file);
-        fs.symlink(file, symlink_file, function(err, sts) {
-            if(err && !hasErrored) {
-                hasErrored = true;
-                log.error('Error updating symlinks directory!: ',err);
-                cb(err);
-            } else if(!hasErrored){
-                if(++linked == total) {
-                    cb();
-                }
-            }
-        });
-    }
-    function startLinking() {
-        fs.mkdir(template_links_dir, 0777, function(err) {
-            if(err) {
-                return cb(err);
-            }
-            templater.listAllThemeTemplates(function(err, files) {
-                if(err) {
-                    return cb(err);
-                }
-                var l = files.length;
-                total = l;
-                while(l--) {
-                    linkFile(files[l]);
-                }
-            });
-        });
-    }
-    function killFile(file) {
-        fs.unlink(file, function(err) {
-            if(++filesDeleted == totalFilesToDelete) {
-                fs.rmdir(template_links_dir, function(sts) {
-                    startLinking();
-                });
-            }
-        });
-    }
-    fs.readdir(template_links_dir, function (err, files) {
-        if(err) {
-            // Hooray it doesn't exist!
-            startLinking();
-        } else if(!files.length) {
-            // It has no files so we can delete the bitch
-            fs.rmdir(template_links_dir, function(sts) {
-                startLinking();
-            });
-        } else {
-            // It has files and we have to manually delete them one by one THEN delete the directory
-            // because node.js does not appear to have the ability to do rm -r
-            totalFilesToDelete = files.length;
-            for(var x=0, l=files.length; x<l; x++) {
-                killFile(template_links_dir + files[x]);
-            }
-        }
-    });
-};
+//exports.updateSymLinks = function(cb) {
+    //var linked = 0,
+        //total = 0,
+        //hasErrored = false,
+        //totalFilesToDelete = 0;
+        //filesDeleted = 0;
+    //function linkFile(file) {
+        //if(hasErrored) {
+            //return;
+        //}
+        //var symlink_file = template_links_dir + path.basename(file);
+        ////log.warn('symlinking ',file,' to ',symlink_file);
+        //fs.symlink(file, symlink_file, function(err, sts) {
+            //if(err && !hasErrored) {
+                //hasErrored = true;
+                //log.error('Error updating symlinks directory!: ',err);
+                //cb(err);
+            //} else if(!hasErrored){
+                //if(++linked == total) {
+                    //cb();
+                //}
+            //}
+        //});
+    //}
+    //function startLinking() {
+        //fs.mkdir(template_links_dir, 0777, function(err) {
+            //if(err) {
+                //return cb(err);
+            //}
+            //templater.listAllThemeTemplates(function(err, files) {
+                //if(err) {
+                    //return cb(err);
+                //}
+                //var l = files.length;
+                //total = l;
+                //while(l--) {
+                    //linkFile(files[l]);
+                //}
+            //});
+        //});
+    //}
+    //function killFile(file) {
+        //fs.unlink(file, function(err) {
+            //if(++filesDeleted == totalFilesToDelete) {
+                //fs.rmdir(template_links_dir, function(sts) {
+                    //startLinking();
+                //});
+            //}
+        //});
+    //}
+    //fs.readdir(template_links_dir, function (err, files) {
+        //if(err) {
+            //// Hooray it doesn't exist!
+            //startLinking();
+        //} else if(!files.length) {
+            //// It has no files so we can delete the bitch
+            //fs.rmdir(template_links_dir, function(sts) {
+                //startLinking();
+            //});
+        //} else {
+            //// It has files and we have to manually delete them one by one THEN delete the directory
+            //// because node.js does not appear to have the ability to do rm -r
+            //totalFilesToDelete = files.length;
+            //for(var x=0, l=files.length; x<l; x++) {
+                //killFile(template_links_dir + files[x]);
+            //}
+        //}
+    //});
+//};
 
 // toString all the functions that we want to access on the front end
 exports.addTransientFunction = function() {

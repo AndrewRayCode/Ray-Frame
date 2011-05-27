@@ -28,5 +28,15 @@ module.exports = testutils.testCase({
         assert.ok(true, inst.include);
         assert.ok('header.html', inst.file);
         assert.done();
+    },
+    'test locals in template string': function(assert) {
+        assert.expect(1);
+        templater.buildTemplateString('<div>{{title}}</div>', function(err, str) {
+            templater.saveTemplateString('test', str)(0, {title: 'hi'}, function(err, str) {
+                // Make sure hi was parsed out
+                assert.equals(str, '<div>hi</div>');
+                assert.done();
+            });
+        });
     }
 });

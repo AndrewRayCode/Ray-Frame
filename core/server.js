@@ -23,7 +23,7 @@ exports.createServer = function(options, cb) {
     var express = express_lib.createServer(),
         // TODO: If couch isn't running we just get a top level exception thrown on first access atempt. Would be nice to
         // tell user to start couch.
-        couch_client = require('../../node-couchdb/index.js').createClient(5984, 'localhost'),
+        couch_client = require('node-couchdb').createClient(5984, 'localhost'),
         couch = couch_client.db(options.db_name || 'rayframe'),
         theme = options.theme || 'ray-frame',
         core_static = 'core/static/',

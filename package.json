@@ -1,0 +1,25 @@
+{
+  "name": "Ray-Frame",
+  "description": "A NodeJS CMS",
+  "version": "0.0.0",
+  "homepage": "http://andrewray.me",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DelvarWorld/Ray-Frame"
+  },
+  "author": "Andrew Ray",
+  "directories": {
+    "lib": "./core",
+    "themes": "./user/themes",
+    "tests": "./core/test"
+  },
+  "dependencies": {
+    "express": ">=2.3.9",
+    "connect": ">=1.4.1",
+    "connect-auth": ">=0.2.2",
+    "nodeunit": ">=0.5.1",
+    "simple-logger": ">=0.0.2"
+  },
+  "bundledDependencies": ["node-couchdb"]
+}
+
