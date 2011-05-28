@@ -85,65 +85,97 @@ exports.buildFinalTemplateString = function(template, cb) {
 exports.buildTemplateString = function(template, getObjectsById, cb) {
     var output = '',
         cuts = [],
-        lastCut = 0,
         index;
     //we want to render a page like <div>{{title}}</div>
     //that becomes function(objid, locals, cb) {templater.getObjects({id: objid}, function(objs) { var str = '<div>' + objs[objid].title + '</div>' }
     // get all plips
     // parse plips into javascript commands to execute (recurse)
     // replace html blocks with strings that are added to str
-    //
-    function findCuts(cuts, regex, type, matches, index) {
+    function findCuts(cuts, template, regex, type, matches, index) {
         if((matches = template.match(regex)) && (index = -1)) {
             while(index++ < matches.length - 1) {
                 cuts.push({start: template.indexOf(matches[index]), length: matches[index].length, type: type, src: matches[index]});
             }
         }
     }
-    function startComparitor(a, b) {
-        return a.start > b.start;
-    }
 
-    findCuts(cuts, templater.modelReplaces, 'plip');
-    findCuts(cuts, templater.controlStatements, 'control');
+    findCuts(cuts, template, templater.modelReplaces, 'plip');
+    findCuts(cuts, template, templater.controlStatements, 'control');
+
+    var combined = [],
+        processed = 0;
 
     if(cuts.length) {
-        cuts.sort(startComparitor);
+        var inBetweens = [],
+            first = cuts[0],
+            last = cuts[cuts.length - 1],
+            lastEnd = last.start + last.length;
+        // if our first plip doesn't start at 0, grab the first text node in the template
+        if(first.start != 0) {
+            inBetweens.push({start: 0, length: first.start - 1, type: 'text', src: template.substring(0, first.start)});
+        }
+        // if our last plip doesn't end at the last position, grab the last text node
+        if(lastEnd != template.length - 1) {
+            inBetweens.push({start: lastEnd + 1, length: template.length - lastEnd, type: 'text', src: template.substring(lastEnd)});
+        }
+        // Fill in the text nodes between each plip
+        for(var cut, x = 1; cut = cuts[x++];) {
+            var prev = cuts[x - 1],
+                prevEnd = (prev.start + prev.length + 1);
+            if(cut.start != prevEnd) {
+                inBetweens.push({start: prevEnd, length: cut.start - prevEnd, type: 'text', src: template.substring(lastCut, cut.start)});
+            }
+        }
+        cuts = cuts.concat(inBetweens).sort(function(a, b) {
+            return a.start > b.start;
+        });
+
+        function addToCombined(command, src, index) {
+            command(src, function(err, result) {
+                combined[index] = result;
+                if(++processed == cuts.length) {
+                    combineString();
+                }
+            });
+        }
 
         for(var cut, x = 0; cut = cuts[x++];) {
-            if(cut.start != lastCut) {
-                // Get the text node between thingies
-                output += templater.buildTextNode(template.substring(lastCut, cut.start));
-            }
-            if(cut.type == 'plip') {
-                var instructions = templater.getInstructions(cut.src);
-                if(instructions.include) {
-
-                } else if(instructions.list) {
-
-                } else {
-                    output += "str += (locals['"+instructions.field+"'] || pageData['"+instructions.field+"']);";
-                }
+            if(cut.type == 'text') {
+                addToCombined(templater.buildTextNode, cut.src, x);
+            } else if(cut.type == 'plip') {
+                addToCombined(templater.buildInstructionsFromPlip, cut.src, x);
             } else {
-                // TODO: control statements
+                //TODO: Control statements
             }
-            lastCut = cut.start + cut.length;
-        }
-        if(lastCut < template.length - 1) {
-            output += templater.buildTextNode(template.substring(lastCut));
         }
     } else {
-        output += templater.buildTextNode(template);
+        combined.push(templater.buildTextNode(template));
+        combineString();
     }
-    cb(null, output);
+
+    function combineString() {
+        output += combined.join('');
+        cb(null, output);
+    }
 };
 
-exports.buildTextNode = function(str) {
-    return 'str += "'+str.replace(/"/g, '\\"').replace(/\n/g, '\\n')+'";';
+exports.buildInstructionsFromPlip = function(plip, cb) {
+    var instructions = templater.getInstructions(plip);
+    if(instructions.include) {
+        if(instructions.local) {
+
+        } else {
+
+        }
+    } else if(instructions.list) {
+
+    } else {
+        cb(null, "str += (locals['"+instructions.field+"'] || pageData['"+instructions.field+"']);");
+    }
 };
 
-exports.get = function(objects, cb) {
-    cb(null, []);
+exports.buildTextNode = function(str, cb) {
+    cb(null, 'str += "'+str.replace(/"/g, '\\"').replace(/\n/g, '\\n')+'";');
 };
 
 exports.templateCache = {};
