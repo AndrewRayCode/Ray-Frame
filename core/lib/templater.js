@@ -38,8 +38,8 @@ exports.cacheTheme = function(str, cb) {
 
         function process(filepath) {
             fs.readFile(filepath, function(err, contents) {
-                templater.buildFinalTemplateString(contents, function(err, funcStr) {
-                    templater.saveTemplateString(path.basename(files), funcStr);
+                templater.buildFinalTemplateString(contents.toString(), function(err, funcStr) {
+                    templater.saveTemplateString(path.basename(filepath), funcStr);
                     if(++processed == total) {
                         cb();
                     }
@@ -70,19 +70,25 @@ exports.buildFinalTemplateString = function(template, cb) {
     // function(objid, locals, cb) {...}
 
     var output = "str = '';",
-        getObjectsById = [];
+        parseData = {
+            getObjectsById: [],
+            outdent: ''
+        };
 
-    templater.buildTemplateString(template, getObjectsById, function(err, str) {
+    templater.buildTemplateString(template, parseData, function(err, str) {
 
-        output += "cache.get("+sys.inspect(getObjectsById)+", function(err, pageData) {";
+        output += "if(typeof objid == 'string') {cache.get("+sys.inspect(parseData.getObjectsById)+", go);} else {go(null, objid);}";
+        output += "function go(err, pageData) {"
         output += str;
-        output += "cb(null,str); });";
+        output += "cb(null,str);";
+        output += parseData.outdent;
+        output += "}";
 
         cb(null, output);
     });
 };
 
-exports.buildTemplateString = function(template, getObjectsById, cb) {
+exports.buildTemplateString = function(template, parseData, cb) {
     var output = '',
         cuts = [],
         index;
@@ -123,7 +129,7 @@ exports.buildTemplateString = function(template, getObjectsById, cb) {
             var prev = cuts[x - 1],
                 prevEnd = (prev.start + prev.length + 1);
             if(cut.start != prevEnd) {
-                inBetweens.push({start: prevEnd, length: cut.start - prevEnd, type: 'text', src: template.substring(lastCut, cut.start)});
+                inBetweens.push({start: prevEnd, length: cut.start - prevEnd, type: 'text', src: template.substring(prevEnd, cut.start - prevEnd)});
             }
         }
         cuts = cuts.concat(inBetweens).sort(function(a, b) {
@@ -131,7 +137,7 @@ exports.buildTemplateString = function(template, getObjectsById, cb) {
         });
 
         function addToCombined(command, src, index) {
-            command(src, function(err, result) {
+            command(src, parseData, function(err, result) {
                 combined[index] = result;
                 if(++processed == cuts.length) {
                     combineString();
@@ -149,8 +155,10 @@ exports.buildTemplateString = function(template, getObjectsById, cb) {
             }
         }
     } else {
-        combined.push(templater.buildTextNode(template));
-        combineString();
+        templater.buildTextNode(template, parseData, function(err, str) {
+            combined.push(str);
+            combineString();
+        });
     }
 
     function combineString() {
@@ -159,13 +167,20 @@ exports.buildTemplateString = function(template, getObjectsById, cb) {
     }
 };
 
-exports.buildInstructionsFromPlip = function(plip, cb) {
+exports.buildInstructionsFromPlip = function(plip, parseData, cb) {
     var instructions = templater.getInstructions(plip);
     if(instructions.include) {
         if(instructions.local) {
-
+            //Function('cache', 'objid', 'locals', 'cb');
+            var output = "templater.templateCache['"+instructions.field+"'](cache, pageData, locals, function(err, rendered) {"
+                + "output += rendered;";
+            parseData.outdent += '})';
+            cb(null, output);
         } else {
-
+            var output = "templater.templateCache['"+instructions.field+"'](cache, "+instructions.field+", locals, function(err, rendered) {"
+                + "output += rendered;";
+            parseData.outdent += '})';
+            cb(null, output);
         }
     } else if(instructions.list) {
 
@@ -174,7 +189,7 @@ exports.buildInstructionsFromPlip = function(plip, cb) {
     }
 };
 
-exports.buildTextNode = function(str, cb) {
+exports.buildTextNode = function(str, parseData, cb) {
     cb(null, 'str += "'+str.replace(/"/g, '\\"').replace(/\n/g, '\\n')+'";');
 };
 

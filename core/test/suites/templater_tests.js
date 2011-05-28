@@ -38,15 +38,5 @@ module.exports = testutils.testCase({
                 assert.done();
             });
         });
-    },
-    //'test local includes': function(assert) {
-        //assert.expect(1);
-        //var cache = require('../../lib/cache');
-        //templater.buildFinalTemplateString('<div>{{title}}</div>', function(err, str) {
-            //templater.saveTemplateString('test', str)(cache, 0, {title: 'hi'}, function(err, str) {
-                //assert.equals(str, '<div>hi</div>');
-                //assert.done();
-            //});
-        //});
-    //}
+    }
 });

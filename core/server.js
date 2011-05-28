@@ -8,6 +8,7 @@ var http = require('http'),
     authUtils = require('./lib/authUtils'),
 	templater = require('./lib/templater'),
     accessors = require('./access_functions'),
+    cache = require('./lib/cache'),
 	express_lib = require('express'),
     server = module.exports,
     // TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
@@ -226,15 +227,7 @@ exports.setUpAccess = function(express) {
 
 // Serve a template from cache or get new version
 exports.serveTemplate = function(user, urlObj, pageData, cb) {
-	// TODO: Right now we are forcing the recreation of the template from disk. Original plan was to store those parsed files in compiled/ directory. Look into this
-	templater.parseTemplate(user, urlObj, pageData, true, cb);
-    
-	//try {
-		//var f = fs.readFileSync('compiled/'+obj.template);
-		//return f;
-	//} catch(e) {
-		//return parseTemplate(obj);
-	//}
+    templater.templateCache[pageData.template](cache, pageData, {}, cb);
 };
 
 function auth(user, pass, cb) {
