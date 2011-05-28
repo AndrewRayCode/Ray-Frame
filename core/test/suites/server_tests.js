@@ -1,6 +1,6 @@
 var testutils = require('../utils'),
     utils = require('../../lib/utils'),
-    log = require('../../lib/logger');
+    log = require('simple-logger');
 
 module.exports = testutils.testCase({
     'test local includes': function(assert) {

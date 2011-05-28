@@ -1,4 +1,4 @@
-var log = require('../lib/logger'),
+var log = require('simple-logger'),
     http = require('http'),
     sys = require('sys'),
     nodeunit = require('nodeunit'),

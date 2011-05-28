@@ -19,6 +19,7 @@
     "connect-auth": ">=0.2.2",
     "nodeunit": ">=0.5.1",
     "simple-logger": ">=0.0.2"
+    "uglify-js": ">=1.0.2"
   },
   "bundledDependencies": ["node-couchdb"]
 }

@@ -1,5 +1,5 @@
 var sys    = require('sys'),
-    log = require('./lib/logger'),
+    log = require('simple-logger'),
     fs = require('fs'),
     templater = require('./lib/templater'),
     utils = require('./lib/utils'),

@@ -1,5 +1,5 @@
 var sys    = require('sys'),
-	log = require('./logger'),
+	log = require('simple-logger'),
 	path = require('path'),
     fs = require('fs'),
     utils = module.exports;

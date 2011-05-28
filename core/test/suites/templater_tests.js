@@ -1,5 +1,5 @@
 var testutils = require('../utils'),
-    log = require('../../lib/logger'),
+    log = require('simple-logger'),
     templater = require('../../lib/templater');
 
 module.exports = testutils.testCase({
@@ -31,9 +31,9 @@ module.exports = testutils.testCase({
     },
     'test locals in template string': function(assert) {
         assert.expect(1);
-        templater.buildTemplateString('<div>{{title}}</div>', function(err, str) {
-            templater.saveTemplateString('test', str)(0, {title: 'hi'}, function(err, str) {
-                // Make sure hi was parsed out
+        var cache = require('../../lib/cache');
+        templater.buildFinalTemplateString('<div>{{title}}</div>', function(err, str) {
+            templater.saveTemplateString('test', str)(cache, 0, {title: 'hi'}, function(err, str) {
                 assert.equals(str, '<div>hi</div>');
                 assert.done();
             });

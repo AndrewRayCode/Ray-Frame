@@ -1,5 +1,5 @@
 var templater = module.exports,
-    log = require('./logger'),
+    log = require('simple-logger'),
     sys = require('sys'),
     themes_dir = '../../user/themes/',
     template_links_dir = '/tmp/tlinks/',
@@ -7,6 +7,8 @@ var templater = module.exports,
 	path = require('path'),
     transients = require('../transients'),
     utils = require('./utils'),
+    parser = require('uglify-js').parser,
+    uglifier = require('uglify-js').uglify,
 	adminFiles = '<script src="/admin/jquery-1.5.min.js"></script><script src="/admin/admin_functions.js"></script><link rel="stylesheet" href="/admin/admin.css" />',
     transientFunctions = '',
     prefixii,
@@ -15,6 +17,7 @@ var templater = module.exports,
 
 // Regex to find {{ stuff }}
 exports.modelReplaces = /\{\{\S+?\}\}/g;
+exports.controlStatements = /\{% \S+? %\}/g;
 
 // Set variables we need
 exports.setReferences = function(db, pre) {
@@ -35,7 +38,7 @@ exports.cacheTheme = function(str, cb) {
 
         function process(filepath) {
             fs.readFile(filepath, function(err, contents) {
-                templater.buildTemplateString(contents, function(err, funcStr) {
+                templater.buildFinalTemplateString(contents, function(err, funcStr) {
                     templater.saveTemplateString(path.basename(files), funcStr);
                     if(++processed == total) {
                         cb();
@@ -51,27 +54,96 @@ exports.cacheTheme = function(str, cb) {
 
 exports.saveTemplateString = function(name, funcStr) {
     // builds: name(objid, locals, cb) { ... funcStr ... }
-    return templater.templateCache[name] = new Function('objid', 'locals', 'cb', funcStr);
+    log.warn(funcStr);
+
+    var ast = parser.parse(funcStr); // parse code and get the initial AST
+    ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
+    ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
+
+    return templater.templateCache[name] = new Function('cache', 'objid', 'locals', 'cb', uglifier.gen_code(ast));
 };
 
 // Take the contents of a template and make an executable function for it. If we have any lists we need functions to get that list data,
 // potentially recursing. Make a getdata function for each recursion and wrap it around the main output, with a way for that block to know
 // what local data to use
-exports.buildTemplateString = function(template, cb) {
+exports.buildFinalTemplateString = function(template, cb) {
     // function(objid, locals, cb) {...}
 
-    var output = "var str = '';",
-        matches,
-        plipCount;
+    var output = "str = '';",
+        getObjectsById = [];
+
+    templater.buildTemplateString(template, getObjectsById, function(err, str) {
+
+        output += "cache.get("+sys.inspect(getObjectsById)+", function(err, pageData) {";
+        output += str;
+        output += "cb(null,str); });";
+
+        cb(null, output);
+    });
+};
+
+exports.buildTemplateString = function(template, getObjectsById, cb) {
+    var output = '',
+        cuts = [],
+        lastCut = 0,
+        index;
     //we want to render a page like <div>{{title}}</div>
     //that becomes function(objid, locals, cb) {templater.getObjects({id: objid}, function(objs) { var str = '<div>' + objs[objid].title + '</div>' }
     // get all plips
     // parse plips into javascript commands to execute (recurse)
     // replace html blocks with strings that are added to str
-    if(matches = f.match(templater.modelReplaces && plipCount = matches.length) {
+    //
+    function findCuts(cuts, regex, type, matches, index) {
+        if((matches = template.match(regex)) && (index = -1)) {
+            while(index++ < matches.length - 1) {
+                cuts.push({start: template.indexOf(matches[index]), length: matches[index].length, type: type, src: matches[index]});
+            }
+        }
     }
-    output += "cb(null,str)";
+    function startComparitor(a, b) {
+        return a.start > b.start;
+    }
+
+    findCuts(cuts, templater.modelReplaces, 'plip');
+    findCuts(cuts, templater.controlStatements, 'control');
+
+    if(cuts.length) {
+        cuts.sort(startComparitor);
+
+        for(var cut, x = 0; cut = cuts[x++];) {
+            if(cut.start != lastCut) {
+                // Get the text node between thingies
+                output += templater.buildTextNode(template.substring(lastCut, cut.start));
+            }
+            if(cut.type == 'plip') {
+                var instructions = templater.getInstructions(cut.src);
+                if(instructions.include) {
+
+                } else if(instructions.list) {
+
+                } else {
+                    output += "str += (locals['"+instructions.field+"'] || pageData['"+instructions.field+"']);";
+                }
+            } else {
+                // TODO: control statements
+            }
+            lastCut = cut.start + cut.length;
+        }
+        if(lastCut < template.length - 1) {
+            output += templater.buildTextNode(template.substring(lastCut));
+        }
+    } else {
+        output += templater.buildTextNode(template);
+    }
     cb(null, output);
+};
+
+exports.buildTextNode = function(str) {
+    return 'str += "'+str.replace(/"/g, '\\"').replace(/\n/g, '\\n')+'";';
+};
+
+exports.get = function(objects, cb) {
+    cb(null, []);
 };
 
 exports.templateCache = {};
