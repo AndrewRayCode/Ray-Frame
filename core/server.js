@@ -7,16 +7,11 @@ var http = require('http'),
     auth = require('connect-auth'),
     authUtils = require('./lib/authUtils'),
 	templater = require('./lib/templater'),
-    accessors = require('./access_functions'),
+    permissions = require('./permissions'),
     cache = require('./lib/cache'),
     flower = require('./lib/flower'),
 	express_lib = require('express'),
-    server = module.exports,
-    // TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
-    prefixii = {
-		admin: 'access', // Change for one more quip of security
-		'public': 'public'
-    };
+    server = module.exports;
 
 exports.createServer = function(options, cb) {
     log.log_level = 'info';
@@ -117,8 +112,7 @@ exports.createServer = function(options, cb) {
                 }
 
                 templater.addTransientFunction('templater.getInstructions');
-                templater.setReferences(couch, prefixii);
-
+                templater.setReferences(couch);
                 server.setUpAccess(express);
 
                 // Here we go!
@@ -175,7 +169,7 @@ exports.resetDatabase = function(couch, callback) {
                             {_id:'global', template:'global.html'}, // another by convention
                             {_id:'login', template:'rayframe_login.html'}, // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)
                             {_id:utils.sanitizeUrl('/'), reference:'root', parents:[]}, // TODO: Should URLs get their own database, or view?
-                            {_id:utils.sanitizeUrl('/'+prefixii.admin), reference:'login', parents:[]}],
+                            {_id:utils.sanitizeUrl('/'+permissions[0].accessURlPrefix), reference:'login', parents:[]}],
                             function(err) {
                                 log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
                                 callback(err);
@@ -194,35 +188,31 @@ exports.resetDatabase = function(couch, callback) {
     });
 };
 
-// Set up access functions for admin AJAX calls
-exports.setUpAccess = function(express) {
-    // Set up each external access function as a post with express
-	for(var role in accessors.functions) {
-        var funcs = accessors.functions[role];
+exports.createPost = function(express, role, prefix, name, functionCall) {
 
-        function createPost(role, funcs, funcName) {
-			express.post('/'+(prefixii[role] || '')+'/'+funcName, function(req, res) {
-                utils.authSession(req);
-                if(req.sesison.user.isAdmin) {
-                    exports.couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
-                        funcs[funcName](req, res, result.rows[0].doc, result.rows[1].doc, exports.couch);
-                    });
-                }
+    express.post('/'+(prefix ? prefix+'/' : '')+name, function(req, res) {
+
+        // Have to do this at every entry point
+        utils.authSession(req);
+
+        if(utils.isAllowed(permissions, role, req.session.user.role)) {
+            exports.couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
+                functionCall(req, res, result.rows[0].doc, result.rows[1].doc, exports.couch);
             });
         }
 
-        // Call closure function on every function for this role
-        if(funcs) {
-            for(var funcName in funcs) {
-                createPost(role, funcs, funcName);
-            }
-        }
-    }
-    express.get('/'+prefixii.admin, function(req, res) {
-        exports.serveTemplate = function(user, urlObj, pageData, cb) {
-        };
     });
-    express.post('/'+prefixii.admin, function(req, res) {
+
+}
+
+// Set up access functions for admin AJAX calls
+exports.setUpAccess = function(express) {
+    permissions.forEach(function(role) {
+        log.info('Creating permissions for `'+role.name+'`...');
+
+        for(var functionName in role.accessors) {
+            server.createPost(express, role.name, role.accessURlPrefix || '', functionName, role.accessors[functionName]);
+        }
     });
 };
 
@@ -230,7 +220,3 @@ exports.setUpAccess = function(express) {
 exports.serveTemplate = function(user, urlObj, pageData, cb) {
     templater.templateCache[pageData.template](cache, flower, [pageData], {}, cb);
 };
-
-function auth(user, pass, cb) {
-    cb(true);
-}

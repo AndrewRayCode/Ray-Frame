@@ -10,7 +10,6 @@ var templater = module.exports,
     uglifier = require('uglify-js').uglify,
     themes_dir = '../../user/themes/',
     template_links_dir = '/tmp/tlinks/',
-	adminFiles = '<script src="/admin/jquery-1.5.min.js"></script><script src="/admin/admin_functions.js"></script><link rel="stylesheet" href="/admin/admin.css" />',
     transientFunctions = '',
     prefixii,
     couch,
@@ -21,9 +20,8 @@ exports.modelReplaces = /\{\{\S+?\}\}/g;
 exports.controlStatements = /\{% \S+? %\}/g;
 
 // Set variables we need
-exports.setReferences = function(db, pre) {
+exports.setReferences = function(db) {
     couch = db;
-	prefixii = pre;
 };
 
 exports.cacheTheme = function(str, cb) {
@@ -39,6 +37,7 @@ exports.cacheTheme = function(str, cb) {
 
         function process(filepath) {
             fs.readFile(filepath, function(err, contents) {
+                //for(var x = 0; x < 
                 templater.buildFinalTemplateString(contents.toString(), function(err, funcStr) {
                     templater.saveTemplateString(path.basename(filepath), funcStr);
                     if(++processed == total) {
@@ -206,11 +205,11 @@ exports.parser = function() {
 // Take the contents of a template and make an executable function for it. If we have any lists we need functions to get that list data,
 // potentially recursing. Make a getdata function for each recursion and wrap it around the main output, with a way for that block to know
 // what local data to use
-exports.buildFinalTemplateString = function(template, cb) {
+exports.buildFinalTemplateString = function(template, role, cb) {
     // function(objOrIds, locals, cb) {...}
 
     var parser = new templater.parser();
-    parser.parse(template, function(err, output) {
+    parser.parse(template, role, function(err, output) {
         cb(null, output);
     });
 

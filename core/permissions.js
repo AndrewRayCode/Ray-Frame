@@ -2,14 +2,17 @@ var sys    = require('sys'),
     log = require('simple-logger'),
     fs = require('fs'),
     templater = require('./lib/templater'),
-    utils = require('./lib/utils'),
-    access_functions = module.exports;
+    utils = require('./lib/utils');
 
 // These functions, currently wired up to post methods in sever.js, are access / update functions accessible from the website URL. The syntax is such:
 // { role: {functions_available_to_that_role}}
 // This sets up a chain of security. Note that if a role has access to a function, so does the role above that. It cascades
-exports.functions = {
-    admin: {
+module.exports = [{
+    name: 'admin',
+    templateAddons: '<script src="/admin/jquery-1.5.min.js"></script><script src="/admin/admin_functions.js">'
+        +'</script><link rel="stylesheet" href="/admin/admin.css" />',
+    accessURlPrefix: 'access', // Change for one more quip of security
+    accessors: {
         // TODO
         removeListItem: function(req, res, pageData, urlData, couch) {
 
@@ -167,15 +170,18 @@ exports.functions = {
                 });
             });
         }
-    }, 'public': {
-		addComment: function(req, res, pageData, urlData, couch) {
-			var child = {
-				title: req.body.title,
-				body: req.body.body
-			};
-			utils.addChildById(couch, pageData, 'comments', child, urlData, function(err, child) {
-				res.send('err? '+sys.inspect(err)+' child? '+sys.inspect(child));
-			});
-		}
-	}
-};
+    }
+}, {
+    name: 'public',
+    accessors: {
+        addComment: function(req, res, pageData, urlData, couch) {
+            var child = {
+                title: req.body.title,
+                body: req.body.body
+            };
+            utils.addChildById(couch, pageData, 'comments', child, urlData, function(err, child) {
+                res.send('err? '+sys.inspect(err)+' child? '+sys.inspect(child));
+            });
+        }
+    }
+}];

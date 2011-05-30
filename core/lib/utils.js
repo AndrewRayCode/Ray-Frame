@@ -182,3 +182,22 @@ exports.authSession = function(req) {
         };
     }
 };
+
+exports.isAllowed = function(permissions, currentRole, questionRole) {
+    if(currentRole == questionRole) {
+        return true;
+    }
+    var level,
+        index = permisisons.length;
+    while(index--) {
+        if(permissions[index].name == questionRole) {
+            level = index;
+        } else if(permissions[index].name == targetRole) {
+            if(index < level) {
+                return true;
+            }
+            return false;
+        }
+    }
+    return false;
+};
