@@ -9,6 +9,7 @@ var http = require('http'),
 	templater = require('./lib/templater'),
     accessors = require('./access_functions'),
     cache = require('./lib/cache'),
+    flower = require('./lib/flower'),
 	express_lib = require('express'),
     server = module.exports,
     // TODO: Abstract this out into a config file. Roles are descending, so top level (admin) has access to all functions after it
@@ -227,7 +228,7 @@ exports.setUpAccess = function(express) {
 
 // Serve a template from cache or get new version
 exports.serveTemplate = function(user, urlObj, pageData, cb) {
-    templater.templateCache[pageData.template](cache, pageData, {}, cb);
+    templater.templateCache[pageData.template](cache, flower, [pageData], {}, cb);
 };
 
 function auth(user, pass, cb) {

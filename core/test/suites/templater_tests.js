@@ -31,9 +31,11 @@ module.exports = testutils.testCase({
     },
     'test locals in template string': function(assert) {
         assert.expect(1);
-        var cache = require('../../lib/cache');
+        var cache = require('../../lib/cache'),
+            flower = require('../../lib/flower');
+
         templater.buildFinalTemplateString('<div>{{title}}</div>', function(err, str) {
-            templater.saveTemplateString('test', str)(cache, 0, {title: 'hi'}, function(err, str) {
+            templater.saveTemplateString('test', str)(cache, flower, 0, {title: 'hi'}, function(err, str) {
                 assert.equals(str, '<div>hi</div>');
                 assert.done();
             });

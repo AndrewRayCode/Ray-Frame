@@ -1,14 +1,15 @@
 var templater = module.exports,
     log = require('simple-logger'),
     sys = require('sys'),
-    themes_dir = '../../user/themes/',
-    template_links_dir = '/tmp/tlinks/',
 	fs = require('fs'),
 	path = require('path'),
     transients = require('../transients'),
+    flowControl = require('./flower'),
     utils = require('./utils'),
     parser = require('uglify-js').parser,
     uglifier = require('uglify-js').uglify,
+    themes_dir = '../../user/themes/',
+    template_links_dir = '/tmp/tlinks/',
 	adminFiles = '<script src="/admin/jquery-1.5.min.js"></script><script src="/admin/admin_functions.js"></script><link rel="stylesheet" href="/admin/admin.css" />',
     transientFunctions = '',
     prefixii,
@@ -53,39 +54,171 @@ exports.cacheTheme = function(str, cb) {
 };
 
 exports.saveTemplateString = function(name, funcStr) {
-    // builds: name(objid, locals, cb) { ... funcStr ... }
+    // builds: name(objOrIds, locals, cb) { ... funcStr ... }
     log.warn(funcStr);
 
-    var ast = parser.parse(funcStr); // parse code and get the initial AST
+    var ast;
+    try {
+        var ast = parser.parse(funcStr); // parse code and get the initial AST
+    } catch(e) {
+        throw new Error('Template function string could not be parsed, syntax error found by uglify-js. This is bad.');
+    }
     ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
     ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
 
-    return templater.templateCache[name] = new Function('cache', 'objid', 'locals', 'cb', uglifier.gen_code(ast));
+    return templater.templateCache[name] = new Function('cache', 'flowControl', 'objOrIds', 'locals', 'cb', uglifier.gen_code(ast));
+};
+
+exports.handlers = {
+    textNode: {
+        handler: function(raw, cb) {
+            var output = '';
+
+            if(this.state.indexOf('pre') == -1) {
+                raw = raw.replace(/\r|\n/g, ' ').replace(/\s+/, ' ');
+            }
+            raw = raw.replace(/\\/g, '\\\\');
+
+            for(var x = 0; x < raw.length; x++) {
+                if(raw[x] == '"') {
+                    output += '\\';
+                }
+                output += raw[x];
+            }
+            this.output += this.identifier + ' += "' + output + '";';
+            cb();
+        }
+    },
+    controls: {
+        start: '{% ',
+        end: ' %}',
+        handlers: [{
+            matcher: /^pre/,
+            handler: function(raw, cb) {
+                this.state.push('pre');
+                cb();
+            }
+        }, {
+            matcher: /\/pre^/,
+            handler: function(raw, cb) {
+                this.state.splice(this.state.indexOf('pre'), 1);
+                cb();
+            }
+        }]
+    },
+    plips: {
+        start: '{{',
+        end: '}}',
+        handlers: [{
+            name: 'list',
+            matcher: /:list/,
+            handler: function(raw, cb) {
+                cb();
+            }
+        },{
+            name: 'plip',
+            matcher: /.+/,
+            handler: function(raw, cb) {
+                var instructions = templater.getInstructions('{{'+raw+'}}');
+
+                this.output += this.identifier + ' += (locals["'+instructions.field+'"] || pageData["'+instructions.field+'"]);';
+                cb();
+            }
+        }]
+    }
+};
+
+exports.parser = function() {
+    this.state = [];
+    this.identifier = 'str';
+    this.parseData = {outdent: ''};
+    this.starts = [];
+
+    this.output = 'var '+this.identifier + ' = "";';
+
+    for(var groupName in templater.handlers) {
+        var group = templater.handlers[groupName];
+        group.start && this.starts.push(group.start[0]);
+    }
+
+    this.parse = function(input, cb) {
+        var html = '',
+            me = this,
+            flower = new flowControl(me);
+
+        for(var x = 0, l = input.length; x < l; x++) {
+            var character = input[x];
+            html += character;
+
+            if(~this.starts.indexOf(character)) {
+                for(var groupName in templater.handlers) {
+                    var group = templater.handlers[groupName];
+                    if(group.start && input.substr(x, group.start.length) == group.start) {
+                        // Scan ahead till we find the end
+                        var end = input.indexOf(group.end, x + 1),
+                            contents = input.substring(x + group.start.length, end);
+
+                        if(!end) {
+                            cb(new Error('Opening `'+group.start+'` found but no closing `'+group.end+'` found!'));
+                        }
+                        if(html.length) {
+                            (function(html) {
+                                flower.add(function() {
+                                    templater.handlers.textNode.handler.call(me, html.slice(0,-1), flower.getNextFunction());
+                                });
+                            })(html);
+
+                            html = '';
+                        }
+
+                        var handlers = group.handlers;
+                        for(var i = 0, hl = handlers.length; i < hl; i++) {
+                            var handler = handlers[i];
+                            if(handler.matcher.test(contents)) {
+                                (function(contents){
+                                    flower.add(function() {
+                                        handler.handler.call(this, contents, flower.getNextFunction());
+                                    });
+                                })(contents);
+                                break;
+                            }
+                        }
+                        x = end + group.end.length - 1;
+                        break;
+                    }
+                }
+            }
+        }
+        if(html.length) {
+            flower.add(function() {
+                templater.handlers.textNode.handler.call(me, html, flower.getNextFunction());
+            });
+        }
+
+        flower.add(function() {
+            me.output += me.parseData.outdent
+                + 'cb(null, '+me.identifier+')';
+            cb(null, me.output);
+        }).onError(cb).execute();
+    }
 };
 
 // Take the contents of a template and make an executable function for it. If we have any lists we need functions to get that list data,
 // potentially recursing. Make a getdata function for each recursion and wrap it around the main output, with a way for that block to know
 // what local data to use
 exports.buildFinalTemplateString = function(template, cb) {
-    // function(objid, locals, cb) {...}
+    // function(objOrIds, locals, cb) {...}
 
-    var output = "str = '';",
+    var parser = new templater.parser();
+    parser.parse(template, function(err, output) {
+        cb(null, output);
+    });
+
+    var output = "var flower = new flowControl(this), str = '', pageData;",
         parseData = {
             getObjectsById: [],
             outdent: ''
         };
-
-    templater.buildTemplateString(template, parseData, function(err, str) {
-
-        output += "if(typeof objid == 'string') {cache.get("+sys.inspect(parseData.getObjectsById)+", go);} else {go(null, objid);}";
-        output += "function go(err, pageData) {"
-        output += str;
-        output += "cb(null,str);";
-        output += parseData.outdent;
-        output += "}";
-
-        cb(null, output);
-    });
 };
 
 exports.buildTemplateString = function(template, parseData, cb) {
@@ -93,7 +226,7 @@ exports.buildTemplateString = function(template, parseData, cb) {
         cuts = [],
         index;
     //we want to render a page like <div>{{title}}</div>
-    //that becomes function(objid, locals, cb) {templater.getObjects({id: objid}, function(objs) { var str = '<div>' + objs[objid].title + '</div>' }
+    //that becomes function(objOrIds, locals, cb) {templater.getObjects({id: objOrIds}, function(objs) { var str = '<div>' + objs[objOrIds].title + '</div>' }
     // get all plips
     // parse plips into javascript commands to execute (recurse)
     // replace html blocks with strings that are added to str
@@ -171,7 +304,7 @@ exports.buildInstructionsFromPlip = function(plip, parseData, cb) {
     var instructions = templater.getInstructions(plip);
     if(instructions.include) {
         if(instructions.local) {
-            //Function('cache', 'objid', 'locals', 'cb');
+            //Function('cache', 'objOrIds', 'locals', 'cb');
             var output = "templater.templateCache['"+instructions.field+"'](cache, pageData, locals, function(err, rendered) {"
                 + "output += rendered;";
             parseData.outdent += '})';
