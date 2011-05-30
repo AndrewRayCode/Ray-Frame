@@ -92,7 +92,7 @@ exports.createServer = function(options, cb) {
         });
 
         // Tell our template library what theme to use
-        templater.cacheTheme(theme, function(err) {
+        templater.cacheTheme(theme, permissions, function(err) {
             if(err) {
                 return log.error('Error setting theme!: ',err);
             }
@@ -218,5 +218,5 @@ exports.setUpAccess = function(express) {
 
 // Serve a template from cache or get new version
 exports.serveTemplate = function(user, urlObj, pageData, cb) {
-    templater.templateCache[pageData.template](cache, flower, [pageData], {}, cb);
+    templater.templateCache[pageData.template + user.role](cache, flower, [pageData], {}, cb);
 };

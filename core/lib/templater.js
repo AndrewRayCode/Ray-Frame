@@ -24,7 +24,7 @@ exports.setReferences = function(db) {
     couch = db;
 };
 
-exports.cacheTheme = function(str, cb) {
+exports.cacheTheme = function(str, permissions, cb) {
     theme = str + '/';
     
     templater.listAllThemeTemplates(function(err, files) {
@@ -37,13 +37,19 @@ exports.cacheTheme = function(str, cb) {
 
         function process(filepath) {
             fs.readFile(filepath, function(err, contents) {
-                //for(var x = 0; x < 
-                templater.buildFinalTemplateString(contents.toString(), function(err, funcStr) {
-                    templater.saveTemplateString(path.basename(filepath), funcStr);
-                    if(++processed == total) {
-                        cb();
-                    }
-                });
+                var permissionsIndex = permissions.length,
+                    permission;
+                while(permissionsIndex--) {
+                    permission = permissions[permissionsIndex];
+
+                    templater.buildFinalTemplateString(contents.toString(), permission, function(err, funcStr) {
+                        templater.saveTemplateString(path.basename(filepath) + permission.name, funcStr);
+                        if(++processed == total) {
+                            cb();
+                        }
+                    });
+
+                }
             });
         }
         while(l--) {
@@ -140,7 +146,7 @@ exports.parser = function() {
         group.start && this.starts.push(group.start[0]);
     }
 
-    this.parse = function(input, cb) {
+    this.parse = function(input, role, cb) {
         var html = '',
             me = this,
             flower = new flowControl(me);
@@ -195,9 +201,7 @@ exports.parser = function() {
         }
 
         flower.add(function() {
-            me.output += me.parseData.outdent
-                + 'cb(null, '+me.identifier+')';
-            cb(null, me.output);
+            cb(null, me.parseData, me.output);
         }).onError(cb).execute();
     }
 };
@@ -209,7 +213,12 @@ exports.buildFinalTemplateString = function(template, role, cb) {
     // function(objOrIds, locals, cb) {...}
 
     var parser = new templater.parser();
-    parser.parse(template, role, function(err, output) {
+    parser.parse(template, role, function(err, parseData, output) {
+        output = 'var pageData = {}; cache.get('+sys.inspect(parseData.cacheItems)+', function(err, pageData) {'
+            + output
+            + 'cb(null, '+parser.identifier+');'
+            + parseData.outdent
+            + '});';
         cb(null, output);
     });
 
