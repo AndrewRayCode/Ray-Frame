@@ -68,8 +68,9 @@ exports.cacheTheme = function(str, permissions, cb) {
 };
 
 exports.saveTemplateString = function(name, funcStr) {
-    // builds: name(objOrIds, locals, cb) { ... funcStr ... }
-    //log.warn(funcStr);
+    if(name == 'header.htmlpublic') {
+    log.warn(funcStr);
+    }
 
     var ast;
     try {
@@ -80,7 +81,7 @@ exports.saveTemplateString = function(name, funcStr) {
     ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
     ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
 
-    return templater.templateCache[name] = new Function('cache', 'templater', 'objOrIds', 'locals', 'cb', uglifier.gen_code(ast));
+    return templater.templateCache[name] = new Function('cache', 'templater', 'pageData', 'cb', uglifier.gen_code(ast));
 };
 
 exports.handlers = {
@@ -152,9 +153,6 @@ exports.handlers = {
                         });
                     });
                 }
-                //instructions.field
-
-                //this.output += this.identifier + ' += (locals["'+instructions.field+'"] || pageData["'+instructions.field+'"]);';
             }
         }, {
             name: 'include',
@@ -162,12 +160,14 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw.replace('include ',''));
 
-                this.output += 'templater.templateCache["'+instructions.field+this.role.name+'"](cache, templater, [pageData], locals, function(err, parsed) {'
+                this.parseData.cacheItems.push({id: instructions.field});
+
+                this.output += 'var include = {main: {data: cacheData["'+instructions.field+'"], locals: {}, parent: pageData}};'
+                    +'templater.templateCache["'+instructions.field+this.role.name+'"](cache, templater, include, function(err, parsed) {'
                     + this.identifier + ' += parsed;';
 
                 this.parseData.outdent += '});';
 
-                //this.output += this.identifier + ' += (locals["'+instructions.field+'"] || pageData["'+instructions.field+'"]);';
                 cb();
             }
         }]
@@ -194,7 +194,7 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw);
 
-                this.output += this.identifier + ' += (locals["'+instructions.field+'"] || pageData["'+instructions.field+'"]);';
+                this.output += this.identifier + ' += (pageData.main.locals["'+instructions.field+'"] || pageData.main.data["'+instructions.field+'"]);';
                 cb();
             }
         }]
@@ -290,7 +290,7 @@ exports.buildFinalTemplateString = function(template, role, cb) {
         identifier: 'str'
     });
     parser.parse(template, function(err, parseData, output) {
-        output = 'var pageData = {}, '+parser.identifier+' = ""; cache.get('+sys.inspect(parseData.cacheItems)+', function(err, pageData) {'
+        output = 'var '+parser.identifier+' = ""; cache.get('+sys.inspect(parseData.cacheItems)+', function(err, cacheData) {'
             + output
             + 'cb(null, '+parser.identifier+');'
             + parseData.outdent
