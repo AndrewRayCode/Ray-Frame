@@ -38,16 +38,29 @@ exports.cacheTheme = function(str, permissions, cb) {
         function process(filepath) {
             fs.readFile(filepath, function(err, contents) {
                 var permissionsIndex = permissions.length,
-                    permission;
+                    permission,
+                    name;
                 while(permissionsIndex--) {
                     permission = permissions[permissionsIndex];
+                    name = path.basename(filepath) + permission.name;
 
-                    templater.buildFinalTemplateString(contents.toString(), permission, function(err, funcStr) {
-                        templater.saveTemplateString(path.basename(filepath) + permission.name, funcStr);
-                        if(++processed == total) {
-                            cb();
-                        }
-                    });
+                    // Was this template (like an include wrapper) already parsed?
+                    if(templater.templateCache[name]) {
+                        continue;
+                    }
+
+                    (function(name) {
+                        templater.buildFinalTemplateString(contents.toString(), permission, function(err, funcStr) {
+                            if(name == 'index.htmlpublic') {
+
+                                log.error('outpt: ',funcStr);
+                            }
+                            templater.saveTemplateString(name, funcStr);
+                            if(++processed == total) {
+                                cb();
+                            }
+                        });
+                    })(name)
 
                 }
             });
@@ -60,7 +73,7 @@ exports.cacheTheme = function(str, permissions, cb) {
 
 exports.saveTemplateString = function(name, funcStr) {
     // builds: name(objOrIds, locals, cb) { ... funcStr ... }
-    log.warn(funcStr);
+    //log.warn(funcStr);
 
     var ast;
     try {
@@ -80,7 +93,7 @@ exports.handlers = {
             var output = '';
 
             if(this.state.indexOf('pre') == -1) {
-                raw = raw.replace(/\r|\n/g, ' ').replace(/\s+/, ' ');
+                raw = raw.replace(/\r|\n/g, ' ').replace(/\s+/g, ' ');
             }
             raw = raw.replace(/\\/g, '\\\\');
 
@@ -109,6 +122,51 @@ exports.handlers = {
                 this.state.splice(this.state.indexOf('pre'), 1);
                 cb();
             }
+        }, {
+            name: 'wrapped',
+            matcher: /wrapped by .*\.html/,
+            handler: function(raw, cb) {
+                var instructions = templater.getInstructions(raw.replace('wrapped by ','')),
+                    cachedWrap = templater.templateCache[instructions.field + this.role];
+
+                function handle(wrapper) {
+                    var parts = wrapper.output.split('{{child}}');
+
+                    me.parseData.cacheItems = me.parseData.cacheItems.concat(wrapper.parseData.cacheItems);
+                    me.output = parts[0] + me.output;
+                    me.parseData.outdent = me.parseData.outdent + parts[1];
+                    cb();
+                }
+                if(cachedWrap) {
+                    handle(cachedWrap);
+                } else {
+                    var parser = new templater.parser({
+                        role: this.role,
+                        identifier: this.identifier
+                    }), me = this;
+                    templater.getTemplateSource(instructions.field, function(err, source) {
+                        parser.parse(source, function(err, parseData, output) {
+                            var cached = templater.templateCache[instructions.field + me.role] = {
+                                parseData: parseData,
+                                output: output
+                            };
+                            handle(cached);
+                        });
+                    });
+                }
+                //instructions.field
+
+                //this.output += this.identifier + ' += (locals["'+instructions.field+'"] || pageData["'+instructions.field+'"]);';
+            }
+        }, {
+            name: 'include',
+            matcher: /include .*\.html/,
+            handler: function(raw, cb) {
+                var instructions = templater.getInstructions(raw.replace('include ',''));
+
+                //this.output += this.identifier + ' += (locals["'+instructions.field+'"] || pageData["'+instructions.field+'"]);';
+                cb();
+            }
         }]
     },
     plips: {
@@ -121,10 +179,17 @@ exports.handlers = {
                 cb();
             }
         },{
+            name: 'child',
+            matcher: /^child$/,
+            handler: function(raw, cb) {
+                this.output += '{{'+raw+'}}';
+                cb();
+            }
+        }, {
             name: 'plip',
             matcher: /.+/,
             handler: function(raw, cb) {
-                var instructions = templater.getInstructions('{{'+raw+'}}');
+                var instructions = templater.getInstructions(raw);
 
                 this.output += this.identifier + ' += (locals["'+instructions.field+'"] || pageData["'+instructions.field+'"]);';
                 cb();
@@ -133,20 +198,25 @@ exports.handlers = {
     }
 };
 
-exports.parser = function() {
-    this.state = [];
-    this.identifier = 'str';
-    this.parseData = {outdent: ''};
-    this.starts = [];
+exports.parser = function(options) {
+    for(var option in options) {
+        this[option] = options[option];
+    }
 
-    this.output = 'var '+this.identifier + ' = "";';
+    this.state = [];
+    this.parseData = {
+        outdent: '',
+        cacheItems: []
+    };
+    this.starts = [];
+    this.output = '';
 
     for(var groupName in templater.handlers) {
         var group = templater.handlers[groupName];
         group.start && this.starts.push(group.start[0]);
     }
 
-    this.parse = function(input, role, cb) {
+    this.parse = function(input, cb) {
         var html = '',
             me = this,
             flower = new flowControl(me);
@@ -180,11 +250,11 @@ exports.parser = function() {
                         for(var i = 0, hl = handlers.length; i < hl; i++) {
                             var handler = handlers[i];
                             if(handler.matcher.test(contents)) {
-                                (function(contents){
+                                (function(contents, handler){
                                     flower.add(function() {
                                         handler.handler.call(this, contents, flower.getNextFunction());
                                     });
-                                })(contents);
+                                })(contents, handler);
                                 break;
                             }
                         }
@@ -212,21 +282,18 @@ exports.parser = function() {
 exports.buildFinalTemplateString = function(template, role, cb) {
     // function(objOrIds, locals, cb) {...}
 
-    var parser = new templater.parser();
-    parser.parse(template, role, function(err, parseData, output) {
-        output = 'var pageData = {}; cache.get('+sys.inspect(parseData.cacheItems)+', function(err, pageData) {'
+    var parser = new templater.parser({
+        role: role,
+        identifier: 'str'
+    });
+    parser.parse(template, function(err, parseData, output) {
+        output = 'var pageData = {}, '+parser.identifier+' = ""; cache.get('+sys.inspect(parseData.cacheItems)+', function(err, pageData) {'
             + output
             + 'cb(null, '+parser.identifier+');'
             + parseData.outdent
             + '});';
         cb(null, output);
     });
-
-    var output = "var flower = new flowControl(this), str = '', pageData;",
-        parseData = {
-            getObjectsById: [],
-            outdent: ''
-        };
 };
 
 exports.buildTemplateString = function(template, parseData, cb) {
@@ -742,7 +809,7 @@ exports.readTemplate = function(name, cb) {
 
 // Recursively read all template files from the current theme //TODO: I feel like theme shouldn't be global
 exports.listAllThemeTemplates = function(cb) {
-    utils.readDir(__dirname + '/' + themes_dir + theme + 'templates/', function(err, data) {
+    utils.readDir(templater.getTemplateDir(), function(err, data) {
         if(err) {
             return cb(err);
         }
@@ -757,6 +824,20 @@ exports.listAllThemeTemplates = function(cb) {
         cb(null, templates);
     });
 };
+
+exports.getTemplateSource = function(name, cb) {
+    templater.listTemplates({include_all: true}, function(err, templates) {
+        for(var x = 0, l = templates.length; x < l; x++) {
+            var template = templates[x];
+            if(path.basename(template) == name) {
+                fs.readFile(templater.getTemplateDir() + template, function(err, contents) {
+                    cb(null, contents.toString());
+                });
+                break;
+            }
+        }
+    });
+}
 
 exports.listTemplates = function(options, cb) {
     if(typeof options == 'function') {
@@ -895,6 +976,10 @@ exports.recurseTemplateData = function(user, urlObj, pageData, canHaveGlobal, cb
         }
         replace(f);
     });
+};
+
+exports.getTemplateDir = function() {
+    return __dirname + '/' + themes_dir + theme + 'templates/';
 };
 
 exports.getViewName = function(instructions) {
