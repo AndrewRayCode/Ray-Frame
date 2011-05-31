@@ -51,10 +51,6 @@ exports.cacheTheme = function(str, permissions, cb) {
 
                     (function(name) {
                         templater.buildFinalTemplateString(contents.toString(), permission, function(err, funcStr) {
-                            if(name == 'index.htmlpublic') {
-
-                                log.error('outpt: ',funcStr);
-                            }
                             templater.saveTemplateString(name, funcStr);
                             if(++processed == total) {
                                 cb();
@@ -84,7 +80,7 @@ exports.saveTemplateString = function(name, funcStr) {
     ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
     ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
 
-    return templater.templateCache[name] = new Function('cache', 'flowControl', 'objOrIds', 'locals', 'cb', uglifier.gen_code(ast));
+    return templater.templateCache[name] = new Function('cache', 'templater', 'objOrIds', 'locals', 'cb', uglifier.gen_code(ast));
 };
 
 exports.handlers = {
@@ -127,14 +123,16 @@ exports.handlers = {
             matcher: /wrapped by .*\.html/,
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw.replace('wrapped by ','')),
-                    cachedWrap = templater.templateCache[instructions.field + this.role];
+                    cachedWrap = templater.templateCache[instructions.field + this.role],
+                    me = this;
 
                 function handle(wrapper) {
                     var parts = wrapper.output.split('{{child}}');
 
                     me.parseData.cacheItems = me.parseData.cacheItems.concat(wrapper.parseData.cacheItems);
-                    me.output = parts[0] + me.output;
-                    me.parseData.outdent = me.parseData.outdent + parts[1];
+                    me.output = parts[0] + me.output + parts[1];
+                    me.parseData.outdent = me.parseData.outdent + wrapper.parseData.outdent;
+
                     cb();
                 }
                 if(cachedWrap) {
@@ -143,7 +141,7 @@ exports.handlers = {
                     var parser = new templater.parser({
                         role: this.role,
                         identifier: this.identifier
-                    }), me = this;
+                    });
                     templater.getTemplateSource(instructions.field, function(err, source) {
                         parser.parse(source, function(err, parseData, output) {
                             var cached = templater.templateCache[instructions.field + me.role] = {
@@ -163,6 +161,11 @@ exports.handlers = {
             matcher: /include .*\.html/,
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw.replace('include ',''));
+
+                this.output += 'templater.templateCache["'+instructions.field+this.role.name+'"](cache, templater, [pageData], locals, function(err, parsed) {'
+                    + this.identifier + ' += parsed;';
+
+                this.parseData.outdent += '});';
 
                 //this.output += this.identifier + ' += (locals["'+instructions.field+'"] || pageData["'+instructions.field+'"]);';
                 cb();

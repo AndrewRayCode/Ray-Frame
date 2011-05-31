@@ -165,7 +165,7 @@ exports.resetDatabase = function(couch, callback) {
                         // Create our homepage object and url object for it
                         utils.bulkDocs(couch, [
                             // Bulkdocs takes _id, not key
-                            {_id:'root', template:'index.html', title:'hello'}, // root is special case. Let couch name other keys for page objects
+                            {_id:'root', template:'index.html', title:'hello', welcome_message: 'test'}, // root is special case. Let couch name other keys for page objects
                             {_id:'global', template:'global.html'}, // another by convention
                             {_id:'login', template:'rayframe_login.html'}, // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)
                             {_id:utils.sanitizeUrl('/'), reference:'root', parents:[]}, // TODO: Should URLs get their own database, or view?
@@ -218,5 +218,5 @@ exports.setUpAccess = function(express) {
 
 // Serve a template from cache or get new version
 exports.serveTemplate = function(user, urlObj, pageData, cb) {
-    templater.templateCache[pageData.template + user.role](cache, flower, [pageData], {}, cb);
+    templater.templateCache[pageData.template + user.role](cache, templater, [pageData], {}, cb);
 };
