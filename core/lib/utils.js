@@ -31,11 +31,10 @@ exports.guessContentType = function(file) {
 // This method is for making url keys from live urls to put into the database
 exports.sanitizeUrl = function(str) {
     // Never have leading or trailing `.`s, except homepage which is just '~'
-    return 'url:'+str.replace(/\//g, '~').replace(/(.+)~$/, '$1').replace(/^~(.+)/, '$1');
+    return str.replace(/\//g, '~').replace(/(.+)~$/, '$1').replace(/^~(.+)/, '$1');
 };
 
 exports.newUrlFromId = function(urlId, title) {
-	urlId = urlId.replace('url:','');
     // homepage is special case
     return (urlId == '~' ? '/' : '/'+urlId.replace(/~/g, '/')) +
         (title ? (urlId == '~' ? '' : '/')+utils.generateTitle(title) : '');

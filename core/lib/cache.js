@@ -1,38 +1,48 @@
 var cache = module.exports,
     log = require('simple-logger');
 
-cache.get = function(objects, cb) {
-    if(!objects.length) {
-        return cb();
-    }
-    var count = objects.length,
-        processed = 0,
-        output = {},
-        toGetByKey = [];
-
-    function ifFinished() {
-        if(processed == count) {
-            cb(null, output);
+cache.fillIn = function(knowns, unknowns, cb) {
+    log.error('knowns ' , knowns ,' and ',unknowns);
+    // Delete anything already known
+    for(var key in unknowns) {
+        if(unknowns[key] === false) {
+            if(key in knowns) {
+                delete unknowns[key];
+            }
         }
     }
 
-    var item;
-    for(var x = 0, l = count; x < l; x++) {
-        item = objects[x];
-        if(item.id) {
-            toGetByKey.push(item.id);
-        }
-    }
-    if(toGetByKey.length) {
-        this.couch.getDocsByKey(toGetByKey, function(err, result) {
-            log.error(result);
-            var rows = result.rows;
-            processed += result.rows.length;
+    // Count the remaining
+    var keys = Object.keys(unknowns),
+        processed = 0;
 
-            for(var x = 0, l = rows.length; x < l; x++) {
-                output[rows[x].key] = rows[x];;
-            };
-            ifFinished();
+    // TODO: If unknowns do not need extra things in them like {url:...}, unkowns should come in as array of keys not {key: false}
+    if(keys.length) {
+        cache.getDocsByKey(keys, function(err, docs) {
+            if(err) {
+                return cb(err);
+            }
+            for(var x = 0, doc; doc = docs[x++];) {
+                // Modify `knowns` object in place. This is where we add items
+                knowns[doc._id] = {variables: doc, locals: {}};
+            }
+            cb();
         });
+    // Everything is a known
+    } else {
+        cb();
     }
+};
+
+cache.getDocsByKey = function(keys, cb) {
+    this.couch.getDocsByKey(keys, function(err, result) {
+        if(err) {
+            return cb(err);
+        }
+        var docs = [];
+        for(var x = 0, doc; doc = result.rows[x++];) {
+            docs.push(doc.doc);
+        }
+        cb(null, docs);
+    });
 };

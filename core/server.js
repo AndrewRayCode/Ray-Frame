@@ -58,36 +58,33 @@ exports.createServer = function(options, cb) {
             // This is the handler for any web page. There are URL objects in the database that we look up. So basically every
             // URL on the site has its own URL object which contains the id to the model object, and a parent chain of other
             // URL objects so we can say, build a breadcrumb trail
-            couch.getDoc(dbPath, function(err, urlObject) {
+            couch.view('master', 'url', {key: dbPath}, function(err, result) {
                 if(err) {
-                    if(err.error == 'not_found') {
-                        log.warn('Non-existant page was requested (404): `'+dbPath+'`: ',err);
-                        res.writeHead(404, {'Content-Type': 'text/html'});
-                        res.end('Todo: This should be some standardized 404 page');
-                    } else {
-                        log.error('Error fetching URL view `'+dbPath+'`: ',err);
+                    log.error('Error fetching URL view `'+dbPath+'`: ',err);
+                    res.writeHead(500, {'Content-Type': 'text/html'});
+                    res.end('Internal server errrrrrror');
+                } else {
+                    var found = result.rows.length;
+                    if(found == 1) {
+                        server.serveTemplate(req.session.user, result.rows[0].value, function(err, parsed) {
+                            if(err) {
+                                log.error('Error serving template for `'+req.url+'` (CouchDB key `'+dbPath+'`): ',err);
+                                res.writeHead(500, {'Content-Type': 'text/html'});
+                                res.end('Internal server errrrrrror');
+                            } else {
+                                res.writeHead(200, {'Content-Type': 'text/html'});
+                                res.end(parsed);
+                            }
+                        });
+                    } else if(found > 1) {
+                        log.error('Wtf? `'+dbPath+'`: ',rows);
                         res.writeHead(500, {'Content-Type': 'text/html'});
                         res.end('Internal server errrrrrror');
+                    } else {
+                        log.warn('Non-existant page was requested (404): `'+dbPath+'`');
+                        res.writeHead(404, {'Content-Type': 'text/html'});
+                        res.end('Todo: This should be some standardized 404 page');
                     }
-                } else {
-                    couch.getDoc(urlObject.reference, function(err, page) {
-                        if(err) {
-                            log.error('!!! URL object found but no page data found ('+urlObject.reference+')!: ',err);
-                            res.writeHead(500, {'Content-Type': 'text/html'});
-                            res.end('Internal server errrrrrror');
-                        } else {
-                            server.serveTemplate(req.session.user, urlObject, page, function(err, parsed) {
-                                if(err) {
-                                    log.error('Error serving template for `'+req.url+'` (CouchDB key `'+dbPath+'`): ',err);
-                                    res.writeHead(500, {'Content-Type': 'text/html'});
-                                    res.end('Internal server errrrrrror');
-                                } else {
-                                    res.writeHead(200, {'Content-Type': 'text/html'});
-                                    res.end(parsed);
-                                }
-                            });
-                        }
-                    });
                 }
             });
         });
@@ -156,24 +153,27 @@ exports.resetDatabase = function(couch, callback) {
                             // Not currently needed, but this is the syntax for a view save
                             'url':{
                                 map: function(doc) {
-                                    if(doc.reference) {
-                                        emit(doc.reference, doc);
+                                    if(doc.url) {
+                                        emit(doc.url, doc);
                                     }
                                 }
                             }
                         }
                     }, function(err) {
-                        // Create our homepage object and url object for it
+                        // Create our homepage object and url object for it. Bulkdocs takes _id
                         utils.bulkDocs(couch, [
-                            // Bulkdocs takes _id, not key
-                            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'test'}, // root is special case. Let couch name other keys for page objects
-                            {_id:'global', template:'global.html', info: 'stuff'}, // another by convention
-                            {_id:'login', template:'rayframe_login.html'}, // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)
-                            {_id:utils.sanitizeUrl('/'), reference:'root', parents:[]}, // TODO: Should URLs get their own database, or view?
-                            {_id:utils.sanitizeUrl('/'+permissions[0].accessURlPrefix), reference:'login', parents:[]}],
-                            function(err) {
-                                log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
-                                callback(err);
+                            // TEST DATA
+
+                            // root is special case. Let couch name other keys for page objects
+                            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'test', url: utils.sanitizeUrl('/'), parents: []},
+                            {_id:'header.html', template:'header.html'},
+                            {_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
+
+                            // CRAP DATA
+                            {_id:'login', template:'rayframe_login.html', url: utils.sanitizeUrl('/login')} // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)
+                        ], function(err) {
+                            log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
+                            callback(err);
                         });
                     });
                 }
@@ -218,14 +218,14 @@ exports.setUpAccess = function(express) {
 };
 
 // Serve a template from cache or get new version
-exports.serveTemplate = function(user, urlObj, pageData, cb) {
-    var data = {
-        main: {
-            url: urlObj,
-            user: user,
-            locals: {},
-            data: pageData
-        }
+exports.serveTemplate = function(user, pageData, cb) {
+    var data = {};
+
+    data[pageData._id] = {
+        variables: pageData,
+        locals: {}
     };
-    templater.templateCache[pageData.template + user.role](cache, templater, data, cb);
+
+    // function('cache', 'templater', 'pageId', 'data', 'locals', 'cb');
+    templater.templateCache[pageData.template + user.role](cache, templater, pageData._id, data, cb);
 };

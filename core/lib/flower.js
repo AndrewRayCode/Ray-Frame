@@ -4,10 +4,12 @@ function flower(context) {
     this.index = -1;
     this.functions = [];
     this.context = context || this;
+    this.poopies = 0;
 }
 
 flower.prototype.add = function() {
     var me = this;
+    this.poopies++;
     [].slice.call(arguments).forEach(function(func) {
         me.functions.push(function(err) {
             if(err) {
