@@ -1,15 +1,17 @@
+// Flow control module 
+// Lets you add functions to the controller with .add(function() {}); and starts in serial with .execute()
+// It is up to the function's job to call the function returned by flower.getNextFunction(). That function
+// exists because calling flower.next inside your function won't run in the right scope
 module.exports = flower;
 
 function flower(context) {
     this.index = -1;
     this.functions = [];
     this.context = context || this;
-    this.poopies = 0;
 }
 
 flower.prototype.add = function() {
     var me = this;
-    this.poopies++;
     [].slice.call(arguments).forEach(function(func) {
         me.functions.push(function(err) {
             if(err) {

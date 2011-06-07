@@ -88,6 +88,8 @@ exports.saveTemplateString = function(name, funcStr) {
     return templater.templateCache[name] = new Function('cache', 'templater', 'pageId', 'data', 'cb', uglifier.gen_code(ast));
 };
 
+// Template tag handlers. At some point this needs to be moved to its own file, or something, and users need to be able
+// to define their own template handlers.
 exports.handlers = {
     textNode: {
         handler: function(raw, cb) {
@@ -267,6 +269,8 @@ exports.whatDoesItMean = function(stack, str) {
     }
 }
 
+// Parser (really it's just a scanner, parsers are beyond me currently) that turns a template from the filesystem into an
+// executable javascript function
 exports.parser = function(options) {
     for(var option in options) {
         this[option] = options[option];
@@ -281,6 +285,7 @@ exports.parser = function(options) {
     this.starts = [];
     this.output = '';
 
+    // Cache all of the starting tags, like `{%` and `{{` to look for when scanning
     for(var groupName in templater.handlers) {
         var group = templater.handlers[groupName];
         group.start && this.starts.push(group.start[0]);
@@ -293,6 +298,7 @@ exports.parser = function(options) {
 
         for(var x = 0, l = input.length; x < l; x++) {
             var character = input[x];
+            // the html variable is used to track blocks of plain old html text
             html += character;
 
             if(~this.starts.indexOf(character)) {
