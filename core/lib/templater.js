@@ -229,6 +229,13 @@ exports.handlers = {
                 cb();
             }
         },{
+            name: 'child.',
+            matcher: /child\./,
+            handler: function(raw, cb) {
+                this.output += this.identifier + ' += ' + templater.whatDoesItMean(this.state, raw) + ';';
+                cb();
+            }
+        },{
             name: 'parent',
             matcher: /parent\./,
             handler: function(raw, cb) {
@@ -254,6 +261,8 @@ exports.whatDoesItMean = function(stack, str) {
     switch(parts[0]) {
         case 'parent': 
             return 'data[data[pageId].parent].variables["'+parts[1]+'"]';
+        case 'child':
+            return 'data[data[pageId].child].variables["'+parts[1]+'"]';
         break;
     }
 }
