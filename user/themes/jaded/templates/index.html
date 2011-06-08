@@ -1,2 +1,7 @@
 {% wrapped by global.html %}
-<div class="intro">Welcome message: {{welcome_msg}}</div>
+<div class="main">
+    Main div here.
+    <div class="intro">Welcome message: {{welcome_msg}}</div>
+
+    {{pages:list:view=link.html:type=blog}}
+</div>

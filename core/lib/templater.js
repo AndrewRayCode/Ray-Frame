@@ -113,6 +113,7 @@ exports.handlers = {
     controls: {
         start: '{% ',
         end: ' %}',
+        // Put more specific handlers first!
         handlers: [{
             matcher: /^pre/,
             handler: function(raw, cb) {
@@ -217,11 +218,30 @@ exports.handlers = {
     plips: {
         start: '{{',
         end: '}}',
+        // Put more specific handlers first!
         handlers: [{
             name: 'list',
             matcher: /:list/,
             handler: function(raw, cb) {
-                cb();
+                var instructions = templater.getInstructions(raw),
+                    me = this;
+                // Check and see if view exists
+                if(instructions.sort == 'user') {
+                    cb();
+                } else {
+                    templater.createViewIfNull(instructions, function(err, viewName) {
+                        me.parseData.itemsToCache[viewName] = {
+                            field: instructions.field,
+                            list: true
+                        };
+                        
+                        me.output += 'str += "moo";';
+                            //'data["'+instructions.field+'"].parent = pageId;'
+                            //+ 'templater.templateCache["'+instructions.field+this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
+                            //+ this.identifier + ' += parsed;';
+                        cb();
+                    });
+                }
             }
         },{
             name: 'child',
@@ -371,7 +391,7 @@ exports.buildFinalTemplateString = function(template, role, cb) {
         output = 
             'var '+parser.identifier+' = "",'
             + 'found = '+sys.inspect(parseData.itemsToCache)+';'
-            + 'cache.fillIn(data, found, function(err, cacheData) {'
+            + 'cache.fillIn(data, found, pageId, function(err, cacheData) {'
                 + parseData.beforeTemplate
                 + output
                 + parseData.afterTemplate
@@ -599,12 +619,12 @@ exports.getInstructions = function(plip) {
         // This plip came from a template file
         plip = plip.substring(2, plip.length-2);
     } else {
-        // This plip came from the front end, and it will be docid:plip without the {{ }}
-        raw = plip;
+        //// This plip came from the front end, and it will be docid:plip without the {{ }}
+        //raw = plip;
 
-        doc_id = plip.substring(0, plip.indexOf(':'));
-        // Parse out the plip minus the doc_id for getting instructions
-        plip = plip.replace(doc_id+':', '');
+        //doc_id = plip.substring(0, plip.indexOf(':'));
+        //// Parse out the plip minus the doc_id for getting instructions
+        //plip = plip.replace(doc_id+':', '');
     }
     var fields = plip.split(':'),
         l = fields.length,
@@ -1069,4 +1089,43 @@ exports.getTemplateDir = function() {
 
 exports.getViewName = function(instructions) {
     return 'type='+(instructions.type || 'all');
+};
+
+exports.createViewIfNull = function(instructions, cb) {
+    couch.getDesign('master', function(err, doc) {
+        if(err) {
+            return cb(new Error('There was a fatal error, master design not found!', err));
+        }
+        var viewName = templater.getViewName(instructions);
+
+        if(!doc.views[viewName]) {
+            // View does not exist. Make it!
+            if(instructions.type) {
+                doc.views[viewName] = {
+                    map: utils.formatFunction(function(doc) {
+                        if(doc.template) {
+                            var views = $1;
+                            for(var x=0; x<views.length; x++) {
+                                if(doc.template == views[x] + '.html') {
+                                    emit(doc.parent_id, doc);
+                                    break;
+                                }
+                            }
+                        }
+                    }, instructions.type.split(','))
+                };
+            } else {
+                doc.views[viewName] = {
+                    map: function(doc) {
+                        if(doc.template) {
+                            emit(doc.parent_id, doc);
+                        }
+                    }
+                };
+            }
+            couch.saveDesign('master', doc, function(err) {
+                cb(err, viewName);
+            });
+        }
+    });
 };
