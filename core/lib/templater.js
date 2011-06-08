@@ -243,10 +243,22 @@ exports.handlers = {
                         if(me.parseData.declarations.indexOf(funcName) < 0) {
 
                             me.parseData.declarations +=
-                                'function '+funcName+'(listItems, cb) {'
-                                    + 'var rendered = listItems.toString();'
-                                    + 'cb(null, rendered);'
-                                + '};'
+                                'function '+funcName+'(listIds, cb) {'
+                                    + 'var total = listIds.length,'
+                                    + '    processed = 0,'
+                                    + '    finished = [];'
+                                    + 'for(var x = 0, l = listIds.length; x < l; x++) {'
+                                        + '(function(index) {'
+                                            // function('cache', 'templater', 'pageId', 'data', 'cb');
+                                            +'templater.templateCache["'+(instructions.view || 'link.html') + me.role.name+'"](cache, templater, listIds[index], data, function(err, parsed) {'
+                                                + 'finished[index] = parsed;'
+                                                + 'if(++processed == total) {'
+                                                    + 'cb(null, finished.join(""));'
+                                                + '}'
+                                            + '})'
+                                        + '})(x);'
+                                    + '}'
+                                + '};';
                         }
 
                         me.output += funcName + '(data[pageId].variables["'+instructions.field+'"], function(err, rendered) {'
@@ -404,7 +416,7 @@ exports.buildFinalTemplateString = function(template, role, cb) {
             return cb(err);
         }
 
-        // function('cache', 'templater', 'pageId', 'data', 'locals', 'cb');
+        // function('cache', 'templater', 'pageId', 'data', 'cb');
 
         output = 
             'var '+parser.identifier+' = "",'
@@ -415,7 +427,7 @@ exports.buildFinalTemplateString = function(template, role, cb) {
                 + output
                 + parseData.afterTemplate
                 + 'cb(null, '+parser.identifier+');'
-            + '});console.log(data);';
+            + '});';
         cb(null, output);
     });
 };
@@ -503,7 +515,6 @@ exports.buildInstructionsFromPlip = function(plip, parseData, cb) {
     var instructions = templater.getInstructions(plip);
     if(instructions.include) {
         if(instructions.local) {
-            //Function('cache', 'objOrIds', 'locals', 'cb');
             var output = "templater.templateCache['"+instructions.field+"'](cache, pageData, locals, function(err, rendered) {"
                 + "output += rendered;";
             parseData.outdent += '})';

@@ -40,7 +40,7 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
                 return cb(err);
             }
             for(var x = 0, doc; doc = docs[x++];) {
-                // Modify `knowns` object in place. This is where we add items
+                // Modify `knowns` object in place. This is where we add items. Adding locals for convenience. May not be best way
                 knowns[doc._id] = {variables: doc, locals: {}};
             }
             checkIfFinished();
@@ -59,7 +59,7 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
                     }
                     for(var x = 0, row; row = rows[x++];) {
                         // Add the item to the list of knowns
-                        knowns[row._id] = row;
+                        knowns[row._id] = {variables: row, locals: {}};
                         // Add the item to the parent's list field
                         knowns[pageId].variables[fieldName].push(row._id);
                     }
