@@ -141,6 +141,8 @@ exports.handlers = {
                         me.parseData.itemsToCache[cacheItem] = wrapper.parseData.itemsToCache[cacheItem];
                     }
 
+                    me.parseData.declarations += wrapper.parseData.declarations;
+
                     // Add the wrapper to the cache list
                     me.parseData.itemsToCache[instructions.field] = false;
 
@@ -225,17 +227,32 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw),
                     me = this;
-                // Check and see if view exists
+                
+                // TODO: User sort (does not use list)
                 if(instructions.sort == 'user') {
                     cb();
                 } else {
+                    // Create view if needed
                     templater.createViewIfNull(instructions, function(err, viewName) {
+                        // Add our list plip to known cache items
                         me.parseData.itemsToCache[viewName] = {
                             field: instructions.field,
                             list: true
                         };
-                        
-                        me.output += 'str += "moo";';
+                        var funcName = utils.listNameToFunctionName(viewName);
+                        if(me.parseData.declarations.indexOf(funcName) < 0) {
+
+                            me.parseData.declarations +=
+                                'function '+funcName+'(listItems, cb) {'
+                                    + 'var rendered = listItems.toString();'
+                                    + 'cb(null, rendered);'
+                                + '};'
+                        }
+
+                        me.output += funcName + '(data[pageId].variables["'+instructions.field+'"], function(err, rendered) {'
+                            + me.identifier + ' += rendered;';
+
+                        me.parseData.afterTemplate += '});';
                             //'data["'+instructions.field+'"].parent = pageId;'
                             //+ 'templater.templateCache["'+instructions.field+this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
                             //+ this.identifier + ' += parsed;';
@@ -299,6 +316,7 @@ exports.parser = function(options) {
     this.state = this.state || [];
     this.parseData = {
         beforeTemplate: '',
+        declarations: '',
         afterTemplate: '',
         itemsToCache: {}
     };
@@ -391,12 +409,13 @@ exports.buildFinalTemplateString = function(template, role, cb) {
         output = 
             'var '+parser.identifier+' = "",'
             + 'found = '+sys.inspect(parseData.itemsToCache)+';'
-            + 'cache.fillIn(data, found, pageId, function(err, cacheData) {'
+            + parseData.declarations
+            + 'cache.fillIn(data, found, pageId, function(err) {'
                 + parseData.beforeTemplate
                 + output
                 + parseData.afterTemplate
                 + 'cb(null, '+parser.identifier+');'
-            + '});';
+            + '});console.log(data);';
         cb(null, output);
     });
 };

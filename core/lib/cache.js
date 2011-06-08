@@ -2,7 +2,7 @@ var cache = module.exports,
     log = require('simple-logger');
 
 cache.fillIn = function(knowns, unknowns, pageId, cb) {
-    log.error('knowns ' , knowns ,' and ',unknowns);
+    //log.error('knowns ' , knowns ,' and ',unknowns);
 
     var keys = [];
 
@@ -57,12 +57,11 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
                     if(err) {
                         return cb(err);
                     }
-                    for(var x = 0, row, val; row = rows[x++];) {
-                        val = row.value;
+                    for(var x = 0, row; row = rows[x++];) {
                         // Add the item to the list of knowns
-                        knowns[val._id] = val;
+                        knowns[row._id] = row;
                         // Add the item to the parent's list field
-                        knowns[pageId].variables[fieldName].push(val._id);
+                        knowns[pageId].variables[fieldName].push(row._id);
                     }
                     checkIfFinished();
                 });

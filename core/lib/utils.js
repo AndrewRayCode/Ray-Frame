@@ -70,8 +70,8 @@ exports.getOrCreate = function(couch, path, template, cb) {
 
 exports.formatFunction = function(func) {
     func = func.toString();
-    for(var x=1, l=arguments.length; x<l; x++) {
-        func = func.replace('$'+(x+1), sys.inspect(arguments[x]));
+    for(var x = 1, l = arguments.length; x<l; x++) {
+        func = func.replace('$' + x, sys.inspect(arguments[x]));
     }
     return func;
 };
@@ -201,3 +201,7 @@ exports.isAllowed = function(permissions, currentRole, questionRole) {
     }
     return false;
 };
+
+exports.listNameToFunctionName = function(listName) {
+    return 'func' + listName.replace(/[^a-zA-Z]/g, '');
+}
