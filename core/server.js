@@ -210,8 +210,6 @@ exports.createPost = function(express, role, prefix, name, functionCall) {
 // Set up access functions for admin AJAX calls
 exports.setUpAccess = function(express) {
     permissions.forEach(function(role) {
-        log.info('Creating permissions for `'+role.name+'`...');
-
         for(var functionName in role.accessors) {
             server.createPost(express, role.name, role.accessURlPrefix || '', functionName, role.accessors[functionName]);
         }

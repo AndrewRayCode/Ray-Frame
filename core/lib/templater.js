@@ -36,33 +36,13 @@ exports.cacheTheme = function(str, permissions, cb) {
             total = l;
 
         function process(filepath) {
-            fs.readFile(filepath, function(err, contents) {
-                var permissionsIndex = permissions.length,
-                    permission,
-                    name;
-                while(permissionsIndex--) {
-                    permission = permissions[permissionsIndex];
-                    name = path.basename(filepath) + permission.name;
-
-                    // Was this template (like an include wrapper) already parsed?
-                    if(templater.templateCache[name]) {
-                        continue;
+            for(var x = 0, permission; permission = permissions[x++];) {
+                templater.cacheTemplate(filepath, permission, function(err) {
+                    if(err || (++processed == total)) {
+                        cb(err);
                     }
-
-                    (function(name) {
-                        templater.buildFinalTemplateString(contents.toString(), permission, function(err, funcStr) {
-                            if(err) {
-                                return cb(err);
-                            }
-                            templater.saveTemplateString(name, funcStr);
-                            if(++processed == total) {
-                                cb();
-                            }
-                        });
-                    })(name)
-
-                }
-            });
+                });
+            }
         }
         while(l--) {
             process(files[l]);
@@ -70,11 +50,32 @@ exports.cacheTheme = function(str, permissions, cb) {
     });
 };
 
-exports.saveTemplateString = function(name, funcStr) {
-    //if(name == 'header.htmlpublic') {
-    if(name == 'index.htmlpublic') {
-    log.warn(funcStr);
+exports.cacheTemplate = function(filepath, permission, cb) {
+    var baseName = path.basename(filepath),
+        cachedName = baseName + (permission ? permission.name : '');
+
+    // Was this template (like an include wrapper) already parsed?
+    if(cachedName in templater.templateCache) {
+        return cb();
     }
+
+    templater.getTemplateSource(baseName, function(err, contents) {
+        templater.processTemplateString(contents, permission, function(err, data) {
+            if(err) {
+                return cb(err);
+            }
+
+            if(cachedName == 'index.htmlpublic') {
+                log.warn(data.str);
+            }
+            templater.templateCache[cachedName] = data.str ? templater.mangleToFunction(data.str) : data;
+            cb();
+        });
+    });
+};
+
+exports.mangleToFunction = function(funcStr) {
+    //if(name == 'header.htmlpublic') {
 
     var ast;
     try {
@@ -85,7 +86,7 @@ exports.saveTemplateString = function(name, funcStr) {
     ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
     ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
 
-    return templater.templateCache[name] = new Function('cache', 'templater', 'pageId', 'data', 'cb', uglifier.gen_code(ast));
+    return new Function('cache', 'templater', 'pageId', 'data', 'cb', uglifier.gen_code(ast));
 };
 
 // Template tag handlers. At some point this needs to be moved to its own file, or something, and users need to be able
@@ -208,7 +209,7 @@ exports.handlers = {
                 // function('cache', 'templater', 'pageId', 'data', 'cb');
                 this.output += 
                     'data["'+instructions.field+'"].parent = pageId;'
-                    + 'templater.templateCache["'+instructions.field+this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
+                    + 'templater.templateCache["'+instructions.field + this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
                     + this.identifier + ' += parsed;';
 
                 this.parseData.afterTemplate += '});';
@@ -405,8 +406,7 @@ exports.parser = function(options) {
 // Take the contents of a template and make an executable function for it. If we have any lists we need functions to get that list data,
 // potentially recursing. Make a getdata function for each recursion and wrap it around the main output, with a way for that block to know
 // what local data to use
-exports.buildFinalTemplateString = function(template, role, cb) {
-
+exports.processTemplateString = function(template, role, cb) {
     var parser = new templater.parser({
         role: role,
         identifier: 'str'
@@ -416,6 +416,9 @@ exports.buildFinalTemplateString = function(template, role, cb) {
             return cb(err);
         }
 
+        if(this.metaTemplate) {
+            return cb(null, this.templateData);
+        }
         // function('cache', 'templater', 'pageId', 'data', 'cb');
 
         output = 
@@ -428,7 +431,7 @@ exports.buildFinalTemplateString = function(template, role, cb) {
                 + parseData.afterTemplate
                 + 'cb(null, '+parser.identifier+');'
             + '});';
-        cb(null, output);
+        cb(null, {str: output});
     });
 };
 
@@ -944,6 +947,10 @@ exports.readTemplate = function(name, cb) {
 
 // Recursively read all template files from the current theme //TODO: I feel like theme shouldn't be global
 exports.listAllThemeTemplates = function(cb) {
+    // Save locations in cache
+    if(templater.templatePaths) {
+        return cb(null, templater.templatePaths);
+    }
     utils.readDir(templater.getTemplateDir(), function(err, data) {
         if(err) {
             return cb(err);
@@ -956,14 +963,14 @@ exports.listAllThemeTemplates = function(cb) {
                 templates.push(f);
             }
         }
+        templater.templatePaths = templates;
         cb(null, templates);
     });
 };
 
 exports.getTemplateSource = function(name, cb) {
     templater.listTemplates({include_all: true}, function(err, templates) {
-        for(var x = 0, l = templates.length; x < l; x++) {
-            var template = templates[x];
+        for(var x = 0, template; template = templates[x++];) {
             if(path.basename(template) == name) {
                 fs.readFile(templater.getTemplateDir() + template, function(err, contents) {
                     cb(null, contents.toString());
@@ -986,11 +993,8 @@ exports.listTemplates = function(options, cb) {
         for(var x=0; x<files.length; x++) {
             // include everything (including say vim swap files) if specified
             f = files[x].substring(files[x].indexOf(killname) + 10);
-            if(options.really_include_all || 
-                // Otherwise, we only want html files...
-                ((/\.html$/).test(f) && 
-                // And exclude convention named files like global by default
-                (options.include_all || (f != 'global.html')) && f != 'index.html')) {
+            // include non html files?
+            if(options.really_include_all || (/\.html$/).test(f)) {
                 templates.push(f);
             }
         }
