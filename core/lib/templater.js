@@ -24,6 +24,9 @@ exports.setReferences = function(db) {
     couch = db;
 };
 
+exports.templateCache = {};
+exports.rawCache = {};
+
 exports.cacheTheme = function(str, permissions, cb) {
     theme = str + '/';
     
@@ -37,7 +40,7 @@ exports.cacheTheme = function(str, permissions, cb) {
 
         function process(filepath) {
             for(var x = 0, permission; permission = permissions[x++];) {
-                templater.cacheTemplate(filepath, permission, function(err) {
+                templater.cacheTemplate(filepath, {permission: permission}, function(err) {
                     if(err || (++processed == total)) {
                         cb(err);
                     }
@@ -50,9 +53,9 @@ exports.cacheTheme = function(str, permissions, cb) {
     });
 };
 
-exports.cacheTemplate = function(filepath, permission, cb) {
+exports.cacheTemplate = function(filepath, options, cb) {
     var baseName = path.basename(filepath),
-        cachedName = baseName + (permission ? permission.name : '');
+        cachedName = baseName + (options.permission ? options.permission.name : '');
 
     // Was this template (like an include wrapper) already parsed?
     if(cachedName in templater.templateCache) {
@@ -60,16 +63,23 @@ exports.cacheTemplate = function(filepath, permission, cb) {
     }
 
     templater.getTemplateSource(baseName, function(err, contents) {
-        templater.processTemplateString(contents, permission, function(err, data) {
+        templater.processTemplateString(contents, options, function(err, data) {
             if(err) {
                 return cb(err);
             }
 
-            if(cachedName == 'index.htmlpublic') {
-                log.warn(data.str);
+            if(cachedName == 'index.htmladmin') {
+                //var p = data.funcString.split(';');
+                //for(var x=0; x < p.length; x++){
+                //log.warn(p[x]+';');
+                //}
             }
-            templater.templateCache[cachedName] = data.str ? templater.mangleToFunction(data.str) : data;
-            cb();
+            // Save the funciton string in our cache
+            templater.templateCache[cachedName] = templater.mangleToFunction(data.funcString);
+
+            // Also save the raw data in case we need to do anything else tricky with this template, like
+            // use it as a wrapper
+            cb(null, templater.rawCache[cachedName] = data.parseData);
         });
     });
 };
@@ -132,24 +142,24 @@ exports.handlers = {
             matcher: /wrapped by .*\.html/,
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw.replace('wrapped by ','')),
-                    cachedWrap = templater.templateCache[instructions.field + this.role],
+                    cachedWrap = templater.rawCache[instructions.field + this.role],
                     me = this;
 
                 function handle(wrapper) {
-                    var parts = wrapper.output.split('{{child}}');
+                    var parts = wrapper.output.split('this.replacechild;');
 
-                    for(var cacheItem in wrapper.parseData.itemsToCache) {
-                        me.parseData.itemsToCache[cacheItem] = wrapper.parseData.itemsToCache[cacheItem];
+                    for(var cacheItem in wrapper.itemsToCache) {
+                        me.parseData.itemsToCache[cacheItem] = wrapper.itemsToCache[cacheItem];
                     }
 
-                    me.parseData.declarations += wrapper.parseData.declarations;
+                    me.parseData.declarations += wrapper.declarations;
 
                     // Add the wrapper to the cache list
                     me.parseData.itemsToCache[instructions.field] = false;
 
                     me.parseData.beforeTemplate = 
                             // TODO: Should this go at end or beginning? Matters for nesting includes
-                        wrapper.parseData.beforeTemplate + 
+                        wrapper.beforeTemplate + 
                             // Set up child reference
                         'data["'+instructions.field+'"].child = pageId;'
                             // Set up parent reference
@@ -171,7 +181,7 @@ exports.handlers = {
                             // Add in closing global braces
                         + me.parseData.afterTemplate
                             // Put back our closing braces
-                        + wrapper.parseData.afterTemplate;
+                        + wrapper.afterTemplate;
 
                     me.state.splice(me.state.indexOf('varstate:wrap'), 1);
                     cb();
@@ -179,22 +189,16 @@ exports.handlers = {
                 if(cachedWrap) {
                     handle(cachedWrap);
                 } else {
-                    var parser = new templater.parser({
-                        role: this.role,
-                        identifier: this.identifier,
-                        state: this.state.concat('varstate:wrap')
-                    });
-                    templater.getTemplateSource(instructions.field, function(err, source) {
-                        parser.parse(source, function(err, parseData, output) {
-                            if(err) {
-                                return cb(err);
-                            }
-                            var cached = templater.templateCache[instructions.field + me.role] = {
-                                parseData: parseData,
-                                output: output
-                            };
-                            handle(cached);
-                        });
+                    // TODO: Pass permission to this function ?
+                    templater.cacheTemplate(instructions.field, {
+                        permission: {name: this.role},
+                        preState: this.state.concat('varstate:wrap')
+                    }, function(err, cacheData) {
+                        if(err) {
+                            return cb(err);
+                        }
+
+                        handle(cacheData);
                     });
                 }
             }
@@ -209,7 +213,7 @@ exports.handlers = {
                 // function('cache', 'templater', 'pageId', 'data', 'cb');
                 this.output += 
                     'data["'+instructions.field+'"].parent = pageId;'
-                    + 'templater.templateCache["'+instructions.field + this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
+                    + 'templater.templateCache["'+instructions.field + this.role+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
                     + this.identifier + ' += parsed;';
 
                 this.parseData.afterTemplate += '});';
@@ -251,7 +255,7 @@ exports.handlers = {
                                     + 'for(var x = 0, l = listIds.length; x < l; x++) {'
                                         + '(function(index) {'
                                             // function('cache', 'templater', 'pageId', 'data', 'cb');
-                                            +'templater.templateCache["'+(instructions.view || 'link.html') + me.role.name+'"](cache, templater, listIds[index], data, function(err, parsed) {'
+                                            +'templater.templateCache["'+(instructions.view || 'link.html') + me.role+'"](cache, templater, listIds[index], data, function(err, parsed) {'
                                                 + 'finished[index] = parsed;'
                                                 + 'if(++processed == total) {'
                                                     + 'cb(null, finished.join(""));'
@@ -277,7 +281,8 @@ exports.handlers = {
             name: 'child',
             matcher: /^child$/,
             handler: function(raw, cb) {
-                this.output += '{{'+raw+'}}';
+                // Placeholder to replace, otherwise becomes empty statement
+                this.output += 'this.replace'+raw+';';
                 cb();
             }
         },{
@@ -406,32 +411,46 @@ exports.parser = function(options) {
 // Take the contents of a template and make an executable function for it. If we have any lists we need functions to get that list data,
 // potentially recursing. Make a getdata function for each recursion and wrap it around the main output, with a way for that block to know
 // what local data to use
-exports.processTemplateString = function(template, role, cb) {
-    var parser = new templater.parser({
-        role: role,
-        identifier: 'str'
-    });
-    parser.parse(template, function(err, parseData, output) {
+exports.processTemplateString = function(template, options, cb) {
+    var parseOptions = {
+        identifier: 'str',
+        role: options.permission.name
+    }
+    if(options.preState) {
+        parseOptions.state = options.preState;
+    }
+
+    var parser = new templater.parser(parseOptions);
+
+    parser.parse(template, function(err, parseData, rawOutput) {
         if(err) {
             return cb(err);
         }
 
-        if(this.metaTemplate) {
-            return cb(null, this.templateData);
-        }
         // function('cache', 'templater', 'pageId', 'data', 'cb');
 
-        output = 
+        var processedOutput = 
             'var '+parser.identifier+' = "",'
             + 'found = '+sys.inspect(parseData.itemsToCache)+';'
             + parseData.declarations
             + 'cache.fillIn(data, found, pageId, function(err) {'
                 + parseData.beforeTemplate
-                + output
+                + rawOutput
                 + parseData.afterTemplate
                 + 'cb(null, '+parser.identifier+');'
             + '});';
-        cb(null, {str: output});
+        cb(null, {
+            funcString: processedOutput,
+            // Store our raw data in case something else needs to tear it apart
+            parseData: {
+                beforeTemplate: parseData.beforeTemplate,
+                afterTemplate: parseData.afterTemplate,
+                itemsToCache: parseData.itemsToCache,
+                declarations: parseData.declarations,
+                identifier: parser.identifier,
+                output: rawOutput
+            }
+        });
     });
 };
 
@@ -538,8 +557,6 @@ exports.buildInstructionsFromPlip = function(plip, parseData, cb) {
 exports.buildTextNode = function(str, parseData, cb) {
     cb(null, 'str += "'+str.replace(/"/g, '\\"').replace(/\n/g, '\\n')+'";');
 };
-
-exports.templateCache = {};
 
 // Templates can be stored in any folder structure the user wants in themes/theme/templates. For faster
 // template lookup, symlink all the template names to /tmp/tlinks so we can just know that "blog.html" lives

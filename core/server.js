@@ -90,6 +90,8 @@ exports.createServer = function(options, cb) {
         });
 
         // Tell our template library what theme to use
+        templater.addTransientFunction('templater.getInstructions');
+        templater.setReferences(couch);
         templater.cacheTheme(theme, permissions, function(err) {
             if(err) {
                 return log.error('Error setting theme!: ',err);
@@ -108,9 +110,6 @@ exports.createServer = function(options, cb) {
                 for(var x in utils) {
                     templater.addTransientFunction([x, utils[x]]);
                 }
-
-                templater.addTransientFunction('templater.getInstructions');
-                templater.setReferences(couch);
                 server.setUpAccess(express);
 
                 // Here we go!
