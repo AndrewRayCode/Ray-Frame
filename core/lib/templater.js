@@ -189,7 +189,6 @@ exports.handlers = {
                 if(cachedWrap) {
                     handle(cachedWrap);
                 } else {
-                    // TODO: Pass permission to this function ?
                     templater.cacheTemplate(instructions.field, {
                         permission: {name: this.role},
                         preState: this.state.concat('varstate:wrap')
