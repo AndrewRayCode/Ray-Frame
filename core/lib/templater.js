@@ -68,12 +68,13 @@ exports.cacheTemplate = function(filepath, options, cb) {
                 return cb(err);
             }
 
-            if(cachedName == 'index.htmladmin') {
+            //if(cachedName == 'index.htmladmin') {
                 //var p = data.funcString.split(';');
                 //for(var x=0; x < p.length; x++){
-                //log.warn(p[x]+';');
+                    //log.error(p[x]+';');
                 //}
-            }
+            //}
+
             // Save the funciton string in our cache
             templater.templateCache[cachedName] = templater.mangleToFunction(data.funcString);
 
@@ -85,8 +86,6 @@ exports.cacheTemplate = function(filepath, options, cb) {
 };
 
 exports.mangleToFunction = function(funcStr) {
-    //if(name == 'header.htmlpublic') {
-
     var ast;
     try {
         var ast = parser.parse(funcStr); // parse code and get the initial AST
@@ -265,8 +264,8 @@ exports.handlers = {
                                 + '};';
                         }
 
-                        me.output += funcName + '(data[pageId].variables["'+instructions.field+'"], function(err, rendered) {'
-                            + me.identifier + ' += rendered;';
+                        me.appendRaw(funcName + '(data[pageId].variables["'+instructions.field+'"], function(err, rendered) {'
+                            + me.identifier + ' += rendered;');
 
                         me.parseData.afterTemplate += '});';
                             //'data["'+instructions.field+'"].parent = pageId;'
@@ -329,7 +328,6 @@ exports.parser = function(options) {
         this[option] = options[option];
     }
 
-    this.outputBuffer = 'output';
     this.state = this.state || [];
     this.parseData = {
         beforeTemplate: '',
@@ -338,7 +336,8 @@ exports.parser = function(options) {
         itemsToCache: {}
     };
     this.starts = [];
-    this[this.outputBuffer] = '';
+    this.buffers = {};
+    this.bufferStack = [];
 
     // Cache all of the starting tags, like `{%` and `{{` to look for when scanning
     for(var groupName in templater.handlers) {
@@ -346,17 +345,40 @@ exports.parser = function(options) {
         group.start && this.starts.push(group.start[0]);
     }
 
+    // The parser can deal with different 'buffers' (strings) to manage output, like we need to manage a buffer
+    // for each part of a list template
+    this.swapBuffer = function(buff) {
+        this.outputBuffer = buff;
+        this.bufferStack.push(buff);
+
+        if(this.buffers[buff] === undefined) {
+            this.buffers[buff] = '';
+        }
+    }
+
+    // Remove the buffer state. If we are adding to the 'list' buffer, revert to the buffer we were previously adding to
+    this.revertBuffer = function() {
+        this.bufferStack.pop();
+        this.outputBuffer = this.bufferStack[this.bufferStack.length - 1];
+    }
+
     // Append straight code to the template
     this.appendRaw = function(str) {
         this.append(str, true);
     }
 
+    this.getBuffer = function(buff) {
+        return this.buffers[buff];
+    }
+
     // Append code to the output string eventually shown to the user
     this.append = function(str, exact) {
-        this[this.outputBuffer] += (exact ? str : this.identifier + ' += ' + str + ';');
+        this.buffers[this.outputBuffer] += (exact ? str : this.identifier + ' += ' + str + ';');
     }
 
     this.parse = function(input, cb) {
+        this.swapBuffer('output');
+
         var html = '',
             me = this,
             flower = new flowControl(me);
@@ -412,7 +434,7 @@ exports.parser = function(options) {
         }
 
         flower.add(function() {
-            cb(null, me.parseData, me.output);
+            cb(null, me.parseData, me.getBuffer('output'));
         }).onError(cb).execute();
     }
 };
