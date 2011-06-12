@@ -167,7 +167,7 @@ exports.resetDatabase = function(couch, callback) {
                             {_id:'root', template:'index.html', title:'hello', welcome_msg: 'test', url: utils.sanitizeUrl('/'), parents: []},
                             {_id:'header.html', template:'header.html'},
                             {_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
-                            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root'}, // another by convention
+                            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')}, // another by convention
 
                             // CRAP DATA
                             {_id:'login', template:'rayframe_login.html', url: utils.sanitizeUrl('/login')} // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)

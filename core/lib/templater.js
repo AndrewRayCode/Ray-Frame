@@ -68,6 +68,7 @@ exports.cacheTemplate = function(filepath, options, cb) {
                 return cb(err);
             }
 
+            //log.error(cachedName);
             //if(cachedName == 'index.htmladmin') {
                 //var p = data.funcString.split(';');
                 //for(var x=0; x < p.length; x++){
@@ -127,15 +128,60 @@ exports.handlers = {
         handlers: [{
             matcher: /^pre/,
             handler: function(raw, cb) {
-                this.state.push('tagstate:pre');
+                this.pushState('tagstate:pre');
                 cb();
             }
         }, {
             matcher: /\/pre^/,
             handler: function(raw, cb) {
-                this.state.splice(this.state.indexOf('tagstate:pre'), 1);
+                this.popState('tagstate:pre', cb);
+            }
+        /*
+        * List control handlers
+        */
+        }, {
+            name: 'list start open',
+            matcher: /^start$/,
+            handler: function(raw, cb) {
+                this.swapBuffer('start');
                 cb();
             }
+        }, {
+            name: 'list start close',
+            matcher: /^\/start$/,
+            handler: function(raw, cb) {
+                this.revertBuffer();
+                cb();
+            }
+        }, {
+            name: 'list end open',
+            matcher: /^end$/,
+            handler: function(raw, cb) {
+                this.swapBuffer('end');
+                cb();
+            }
+        }, {
+            name: 'list start close',
+            matcher: /^\/end$/,
+            handler: function(raw, cb) {
+                this.revertBuffer();
+                cb();
+            }
+        }, {
+            name: 'list item open',
+            matcher: /^element$/,
+            handler: function(raw, cb) {
+                this.swapBuffer('element');
+                cb();
+            }
+        }, {
+            name: 'list item close',
+            matcher: /^\/element$/,
+            handler: function(raw, cb) {
+                this.revertBuffer();
+                cb();
+            }
+        // for pages with wrapping data
         }, {
             name: 'wrapped',
             matcher: /wrapped by .*\.html/,
@@ -145,7 +191,7 @@ exports.handlers = {
                     me = this;
 
                 function handle(wrapper) {
-                    var parts = wrapper.output.split('this.replacechild;');
+                    var parts = wrapper.buffers.output.split('this.replacechild;');
 
                     for(var cacheItem in wrapper.itemsToCache) {
                         me.parseData.itemsToCache[cacheItem] = wrapper.itemsToCache[cacheItem];
@@ -190,6 +236,8 @@ exports.handlers = {
                 } else {
                     templater.cacheTemplate(instructions.field, {
                         permission: {name: this.role},
+                        // TODO: Are we creating an issue here depending on who renders the list? If wrapper is caught
+                        // by templater first it won't be parsed with varstate:wrap... this might be frugal
                         preState: this.state.concat('varstate:wrap')
                     }, function(err, cacheData) {
                         if(err) {
@@ -225,38 +273,48 @@ exports.handlers = {
         end: '}}',
         // Put more specific handlers first!
         handlers: [{
+            /*
+             * List data handlers
+             */
             name: 'list',
             matcher: /:list/,
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw),
+                    listTemplate = (instructions.listBody || 'list') + '.html',
+                    cachedList = templater.rawCache[listTemplate + this.role],
                     me = this;
                 
                 // TODO: User sort (does not use list)
                 if(instructions.sort == 'user') {
-                    cb();
-                } else {
-                    // Create view if needed
-                    templater.createViewIfNull(instructions, function(err, viewName) {
+                    return cb();
+                }
+                // Create view if needed
+                templater.createViewIfNull(instructions, function(err, viewName) {
+                    function handle(cachedList) {
                         // Add our list plip to known cache items
                         me.parseData.itemsToCache[viewName] = {
                             field: instructions.field,
                             list: true
                         };
                         var funcName = utils.listNameToFunctionName(viewName);
-                        if(me.parseData.declarations.indexOf(funcName) < 0) {
 
+                        if(me.parseData.declarations.indexOf(funcName) < 0) {
                             me.parseData.declarations +=
                                 'function '+funcName+'(listIds, cb) {'
                                     + 'var total = listIds.length,'
                                     + '    processed = 0,'
                                     + '    finished = [];'
+                                    + 'data.listData = {total: total};'
                                     + 'for(var x = 0, l = listIds.length; x < l; x++) {'
                                         + '(function(index) {'
+                                            + 'data.listData.index = index;'
+                                            + 'data.listData.first = index === 0;'
+                                            + 'data.listData.last = index == total;'
                                             // function('cache', 'templater', 'pageId', 'data', 'cb');
                                             +'templater.templateCache["'+(instructions.view || 'link.html') + me.role+'"](cache, templater, listIds[index], data, function(err, parsed) {'
                                                 + 'finished[index] = parsed;'
                                                 + 'if(++processed == total) {'
-                                                    + 'cb(null, finished.join(""));'
+                                                    + 'cb(null, finished);'
                                                 + '}'
                                             + '})'
                                         + '})(x);'
@@ -264,17 +322,52 @@ exports.handlers = {
                                 + '};';
                         }
 
-                        me.appendRaw(funcName + '(data[pageId].variables["'+instructions.field+'"], function(err, rendered) {'
-                            + me.identifier + ' += rendered;');
+                        var pieces = cachedList.buffers.element.split('this.replacechild;');
+
+                        me.appendRaw(funcName + '(data[pageId].variables["'+instructions.field+'"], function(err, renderedItems) {'
+                            + cachedList.buffers.start
+                            + 'for(var x = 0, listItem; listItem = renderedItems[x++];) {'
+                                + pieces[0]
+                                + me.identifier + ' += listItem;'
+                                + pieces[1]
+                            + '}'
+                            + cachedList.buffers.end);
 
                         me.parseData.afterTemplate += '});';
                             //'data["'+instructions.field+'"].parent = pageId;'
                             //+ 'templater.templateCache["'+instructions.field+this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
                             //+ this.identifier + ' += parsed;';
                         cb();
-                    });
-                }
+                    }
+
+                    if(cachedList) {
+                        handle(cachedList);
+                    } else {
+                        log.error('AWWW FUCK ',listTemplate);
+                        templater.cacheTemplate(listTemplate, {
+                            permission: {name: this.role}
+                        }, function(err, cacheData) {
+                            log.warn('tits');
+                            if(err) {
+                                return cb(err);
+                            }
+
+                            handle(cacheData);
+                        });
+                    }
+                });
             }
+        },{
+            name: 'list index',
+            matcher: /^index$/,
+            handler: function(raw, cb) {
+                // Placeholder to replace, otherwise becomes empty statement
+                this.append('data.listData.index');
+                cb();
+            }
+        /*
+         * Special case handlers
+         */
         },{
             name: 'child',
             matcher: /^child$/,
@@ -354,26 +447,35 @@ exports.parser = function(options) {
         if(this.buffers[buff] === undefined) {
             this.buffers[buff] = '';
         }
-    }
+    };
 
     // Remove the buffer state. If we are adding to the 'list' buffer, revert to the buffer we were previously adding to
     this.revertBuffer = function() {
         this.bufferStack.pop();
         this.outputBuffer = this.bufferStack[this.bufferStack.length - 1];
-    }
+    };
 
     // Append straight code to the template
     this.appendRaw = function(str) {
         this.append(str, true);
-    }
-
-    this.getBuffer = function(buff) {
-        return this.buffers[buff];
-    }
+    };
 
     // Append code to the output string eventually shown to the user
     this.append = function(str, exact) {
         this.buffers[this.outputBuffer] += (exact ? str : this.identifier + ' += ' + str + ';');
+    };
+
+    this.pushState = function(state) {
+        this.state.push(state);
+    };
+
+    this.popState = function(state, cb) {
+        var last = state[state.length - 1];
+        if(state && state != last) {
+            return cb(new Error('Tag mismatch found, found ',state,' but exepcted ',state)); 
+        }
+        this.state.pop();
+        cb();
     }
 
     this.parse = function(input, cb) {
@@ -434,7 +536,7 @@ exports.parser = function(options) {
         }
 
         flower.add(function() {
-            cb(null, me.parseData, me.getBuffer('output'));
+            cb(null, me.parseData, me.buffers);
         }).onError(cb).execute();
     }
 };
@@ -453,7 +555,7 @@ exports.processTemplateString = function(template, options, cb) {
 
     var parser = new templater.parser(parseOptions);
 
-    parser.parse(template, function(err, parseData, rawOutput) {
+    parser.parse(template, function(err, parseData, buffers) {
         if(err) {
             return cb(err);
         }
@@ -466,7 +568,7 @@ exports.processTemplateString = function(template, options, cb) {
             + parseData.declarations
             + 'cache.fillIn(data, found, pageId, function(err) {'
                 + parseData.beforeTemplate
-                + rawOutput
+                + buffers.output
                 + parseData.afterTemplate
                 + 'cb(null, '+parser.identifier+');'
             + '});';
@@ -479,7 +581,7 @@ exports.processTemplateString = function(template, options, cb) {
                 itemsToCache: parseData.itemsToCache,
                 declarations: parseData.declarations,
                 identifier: parser.identifier,
-                output: rawOutput
+                buffers: buffers
             }
         });
     });
