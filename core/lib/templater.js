@@ -781,8 +781,8 @@ exports.createViewIfNull = function(instructions, cb) {
 
 //exports.parseTemplate = function(user, urlObj, pageData, canHaveGlobal, cb) {
 		//if(user.isAdmin) {
-            Add admin files to front end, and pass variables about current ids for page context. TODO: This is shittacular on so many levels
-            TODO: Also, uglify some shit up in this bitch
+            //Add admin files to front end, and pass variables about current ids for page context. TODO: This is shittacular on so many levels
+            //TODO: Also, uglify some shit up in this bitch
 			//parsed = parsed.replace('</body>', function() {
 					//return adminFiles+
 						//'<script>var current_id="'+pageData._id+'", current_url_id="'+urlObj._id+'", access_urls='+JSON.stringify(prefixii)+';'+
