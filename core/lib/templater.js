@@ -117,7 +117,7 @@ exports.handlers = {
                 }
                 output += raw[x];
             }
-            this.output += this.identifier + ' += "' + output + '";';
+            this.append('"' + output + '"');
             cb();
         }
     },
@@ -210,10 +210,10 @@ exports.handlers = {
                 this.parseData.itemsToCache[instructions.field] = false;
 
                 // function('cache', 'templater', 'pageId', 'data', 'cb');
-                this.output += 
+                this.appendRaw(
                     'data["'+instructions.field+'"].parent = pageId;'
                     + 'templater.templateCache["'+instructions.field + this.role+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
-                    + this.identifier + ' += parsed;';
+                    + this.identifier + ' += parsed;');
 
                 this.parseData.afterTemplate += '});';
 
@@ -281,21 +281,21 @@ exports.handlers = {
             matcher: /^child$/,
             handler: function(raw, cb) {
                 // Placeholder to replace, otherwise becomes empty statement
-                this.output += 'this.replace'+raw+';';
+                this.appendRaw('this.replace'+raw+';');
                 cb();
             }
         },{
             name: 'child.',
             matcher: /child\./,
             handler: function(raw, cb) {
-                this.output += this.identifier + ' += ' + templater.whatDoesItMean(this.state, raw) + ';';
+                this.append(templater.whatDoesItMean(this.state, raw));
                 cb();
             }
         },{
             name: 'parent',
             matcher: /parent\./,
             handler: function(raw, cb) {
-                this.output += this.identifier + ' += ' + templater.whatDoesItMean(this.state, raw) + ';';
+                this.append(templater.whatDoesItMean(this.state, raw));
                 cb();
             }
         }, {
@@ -304,8 +304,7 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw);
 
-                //this.output += 'console.log("looking up: ", "'+instructions.field+'", "on ",pageId);';
-                this.output += this.identifier + ' += (data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"]);';
+                this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"])');
                 cb();
             }
         }]
@@ -330,6 +329,7 @@ exports.parser = function(options) {
         this[option] = options[option];
     }
 
+    this.outputBuffer = 'output';
     this.state = this.state || [];
     this.parseData = {
         beforeTemplate: '',
@@ -338,12 +338,22 @@ exports.parser = function(options) {
         itemsToCache: {}
     };
     this.starts = [];
-    this.output = '';
+    this[this.outputBuffer] = '';
 
     // Cache all of the starting tags, like `{%` and `{{` to look for when scanning
     for(var groupName in templater.handlers) {
         var group = templater.handlers[groupName];
         group.start && this.starts.push(group.start[0]);
+    }
+
+    // Append straight code to the template
+    this.appendRaw = function(str) {
+        this.append(str, true);
+    }
+
+    // Append code to the output string eventually shown to the user
+    this.append = function(str, exact) {
+        this[this.outputBuffer] += (exact ? str : this.identifier + ' += ' + str + ';');
     }
 
     this.parse = function(input, cb) {
