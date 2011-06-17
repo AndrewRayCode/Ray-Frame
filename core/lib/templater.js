@@ -24,12 +24,17 @@ exports.setReferences = function(db) {
     couch = db;
 };
 
-exports.templateCache = {};
-exports.rawCache = {};
-
 exports.cacheTheme = function(str, permissions, cb) {
+    templater.templateCache = {};
+    templater.rawCache = {};
+
     theme = str + '/';
     
+    // No real reason to do this more than once after a theme is set
+    templater.templateDir = templater.getTemplateDir();
+
+    templater.permissions = permissions;
+
     templater.listAllThemeTemplates(function(err, files) {
         if(err) {
             return cb(err);
@@ -52,6 +57,15 @@ exports.cacheTheme = function(str, permissions, cb) {
         }
     });
 };
+
+// Experimental!
+exports.autoRevalidate = function() {
+    fs.watchFile(templater.templateDir, function() {
+        templater.cacheTheme(theme, templater.permissions, function() {
+            log.info('Cached theme `' + theme.slice(0, -1) + '`');
+        });
+    });
+}
 
 exports.cacheTemplate = function(filepath, options, cb) {
     var baseName = path.basename(filepath),
@@ -667,7 +681,7 @@ exports.listAllThemeTemplates = function(cb) {
     if(templater.templatePaths) {
         return cb(null, templater.templatePaths);
     }
-    utils.readDir(templater.getTemplateDir(), function(err, data) {
+    utils.readDir(templater.templateDir, function(err, data) {
         if(err) {
             return cb(err);
         }
@@ -688,7 +702,7 @@ exports.getTemplateSource = function(name, cb) {
     templater.listTemplates({include_all: true}, function(err, templates) {
         for(var x = 0, template; template = templates[x++];) {
             if(path.basename(template) == name) {
-                fs.readFile(templater.getTemplateDir() + template, function(err, contents) {
+                fs.readFile(templater.templateDir + template, function(err, contents) {
                     cb(null, contents.toString());
                 });
                 break;

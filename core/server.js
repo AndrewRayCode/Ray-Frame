@@ -4,8 +4,6 @@ var http = require('http'),
 	path = require('path'),
 	log = require('simple-logger'),
 	utils = require('./lib/utils'),
-    auth = require('connect-auth'),
-    authUtils = require('./lib/authUtils'),
 	templater = require('./lib/templater'),
     permissions = require('./permissions'),
     cache = require('./lib/cache'),
@@ -24,7 +22,7 @@ exports.createServer = function(options, cb) {
         couch = couch_client.db(options.db_name || 'rayframe'),
         theme = options.theme || 'ray-frame',
         core_static = 'core/static/',
-        user_static = 'user/themes/'+theme+'/static/';
+        user_static = 'user/themes/' + theme + '/static/';
 
     this.couch = couch;
     cache.couch = couch;
@@ -36,16 +34,16 @@ exports.createServer = function(options, cb) {
         express.use(express_lib.bodyParser());
         express.use(express_lib.cookieParser());
         express.use(express_lib.session({secret: options.secret}));
-        express.use(auth(authUtils()));
 
         express.use(express_lib['static'](__dirname + '/../' + user_static));
         express.use(express_lib['static'](__dirname + '/../' + core_static));
     });
 
-    express.error(function(err, req, res) {
-        log.warn('Server error: '+err);
-        res.send('what the heck');
-    });
+    // This should be defined in a non-testing environment. For debugging we want stack traces
+    //express.error(function(err, req, res) {
+        //log.warn('Server error: '+err);
+        //res.send('what the heck');
+    //});
 
     // Internal functions can have silly names, right?
     function prepareForGoTime() {
@@ -96,6 +94,7 @@ exports.createServer = function(options, cb) {
             if(err) {
                 return log.error('Error setting theme!: ',err);
             }
+            templater.autoRevalidate();
 
             // Set up our transient functions (functions that can run server and client side, right now for core live in transient.js);
             var t = './transients.js';
@@ -170,7 +169,7 @@ exports.resetDatabase = function(couch, callback) {
                             {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')}, // another by convention
 
                             // CRAP DATA
-                            {_id:'login', template:'rayframe_login.html', url: utils.sanitizeUrl('/login')} // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)
+                            {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')} // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)
                         ], function(err) {
                             log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
                             callback(err);
@@ -211,6 +210,25 @@ exports.setUpAccess = function(express) {
     permissions.forEach(function(role) {
         for(var functionName in role.accessors) {
             server.createPost(express, role.name, role.accessURlPrefix || '', functionName, role.accessors[functionName]);
+        }
+    });
+
+    express.post('/login', function(request, response) {
+        if(request.body.username == 'bob' && request.body.password == 'saget') {
+            request.session.user = {
+                name: 'bob',
+                role: 'admin',
+                auth: true
+            };
+            response.writeHead(302, {
+                'Location': '/'
+            });
+            response.end();
+        } else {
+            response.writeHead(302, {
+                'Location': '/login'
+            });
+            response.end();
         }
     });
 };
