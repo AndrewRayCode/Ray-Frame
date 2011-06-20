@@ -196,8 +196,8 @@ exports.createPost = function(express, role, prefix, name, functionCall) {
         utils.authSession(req);
 
         if(utils.isAllowed(permissions, role, req.session.user.role)) {
-            exports.couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
-                functionCall(req, res, result.rows[0].doc, result.rows[1].doc, exports.couch);
+            server.couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
+                functionCall(req, res, result.rows[0].doc, result.rows[1].doc, server.couch);
             });
         }
 

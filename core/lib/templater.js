@@ -8,12 +8,7 @@ var templater = module.exports,
     utils = require('./utils'),
     parser = require('uglify-js').parser,
     uglifier = require('uglify-js').uglify,
-    themes_dir = '../../user/themes/',
-    template_links_dir = '/tmp/tlinks/',
-    transientFunctions = '',
-    prefixii,
-    couch,
-    theme;
+    themes_dir = '../../user/themes/';
 
 // Regex to find {{ stuff }}
 exports.modelReplaces = /\{\{\S+?\}\}/g;
@@ -21,14 +16,14 @@ exports.controlStatements = /\{% \S+? %\}/g;
 
 // Set variables we need
 exports.setReferences = function(db) {
-    couch = db;
+    templater.couch = db;
 };
 
-exports.cacheTheme = function(str, permissions, cb) {
+exports.cacheTheme = function(theme, permissions, cb) {
     templater.templateCache = {};
     templater.rawCache = {};
 
-    theme = str + '/';
+    templater.theme = theme;
     
     // No real reason to do this more than once after a theme is set
     templater.templateDir = templater.getTemplateDir();
@@ -61,8 +56,8 @@ exports.cacheTheme = function(str, permissions, cb) {
 // Experimental!
 exports.autoRevalidate = function() {
     fs.watchFile(templater.templateDir, function() {
-        templater.cacheTheme(theme, templater.permissions, function() {
-            log.info('Cached theme `' + theme.slice(0, -1) + '`');
+        templater.cacheTheme(templater.theme, templater.permissions, function() {
+            log.info('Cached theme `' + templater.theme + '`');
         });
     });
 }
@@ -618,7 +613,7 @@ exports.addTransientFunction = function() {
         }
         // TODO: Transient functions should probably require role permissions, like admin gets this, public gets this. addPublicTransientFuncitons would be good,
         // because who cares what methods the logged in content editor gets, they can't use them without back end authentication
-        transientFunctions += 'RayFrame.Transients["'+
+        templater.transientFunctions += 'RayFrame.Transients["'+
             // Put all funcitons on the RayFrame.Transients objects. Replace 'module.fnName' to just 'fnName'. Collisions are possible, like utils.stuff()
             // will overwrite otherModule.stuff(), but I'm not worried right now
             args[l].replace(/.*\./, '')+'"] = '+
@@ -733,7 +728,7 @@ exports.listTemplates = function(options, cb) {
 };
 
 exports.getTemplateDir = function() {
-    return __dirname + '/' + themes_dir + theme + 'templates/';
+    return __dirname + '/' + themes_dir + templater.theme + '/templates/';
 };
 
 exports.getViewName = function(instructions) {
@@ -741,7 +736,7 @@ exports.getViewName = function(instructions) {
 };
 
 exports.createViewIfNull = function(instructions, cb) {
-    couch.getDesign('master', function(err, doc) {
+    templater.couch.getDesign('master', function(err, doc) {
         if(err) {
             return cb(new Error('There was a fatal error, master design not found!', err));
         }
@@ -772,7 +767,7 @@ exports.createViewIfNull = function(instructions, cb) {
                     }
                 };
             }
-            couch.saveDesign('master', doc, function(err) {
+            templater.couch.saveDesign('master', doc, function(err) {
                 cb(err, viewName);
             });
         }
