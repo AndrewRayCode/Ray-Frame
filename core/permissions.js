@@ -11,7 +11,8 @@ module.exports = [{
     name: 'admin',
     templateAddons: '<script src="/admin/jquery-1.5.min.js"></script><script src="/admin/admin_functions.js">'
         +'</script><link rel="stylesheet" href="/admin/admin.css" />',
-    accessURlPrefix: 'access', // Change for one more quip of security
+    accessURLPrefix: 'access', // Change for one more quip of security
+    wrapTemplateFields: true,
     accessors: {
         // TODO
         removeListItem: function(req, res, pageData, urlData, couch) {

@@ -196,7 +196,7 @@ exports.handlers = {
             matcher: /wrapped by .*\.html/,
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw.replace('wrapped by ','')),
-                    cachedWrap = templater.rawCache[instructions.field + this.role],
+                    cachedWrap = templater.rawCache[instructions.field + this.role.name],
                     me = this;
 
                 function handle(wrapper) {
@@ -244,7 +244,7 @@ exports.handlers = {
                     handle(cachedWrap);
                 } else {
                     templater.cacheTemplate(instructions.field, {
-                        permission: {name: this.role},
+                        permission: this.role,
                         // TODO: Are we creating an issue here depending on who renders the list? If wrapper is caught
                         // by templater first it won't be parsed with varstate:wrap... this might be frugal
                         preState: this.state.concat('varstate:wrap')
@@ -268,7 +268,7 @@ exports.handlers = {
                 // function('cache', 'templater', 'pageId', 'data', 'cb');
                 this.appendRaw(
                     'data["'+instructions.field+'"].parent = pageId;'
-                    + 'templater.templateCache["'+instructions.field + this.role+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
+                    + 'templater.templateCache["'+instructions.field + this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
                     + this.identifier + ' += parsed;');
 
                 this.parseData.afterTemplate += '});';
@@ -290,7 +290,7 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw),
                     listTemplate = (instructions.listBody || 'list') + '.html',
-                    cachedList = templater.rawCache[listTemplate + this.role],
+                    cachedList = templater.rawCache[listTemplate + this.role.name],
                     me = this;
                 
                 // TODO: User sort (does not use list)
@@ -320,7 +320,7 @@ exports.handlers = {
                                             + 'data.listData.first = index === 0;'
                                             + 'data.listData.last = index == total;'
                                             // function('cache', 'templater', 'pageId', 'data', 'cb');
-                                            +'templater.templateCache["'+(instructions.view || 'link.html') + me.role+'"](cache, templater, listIds[index], data, function(err, parsed) {'
+                                            +'templater.templateCache["'+(instructions.view || 'link.html') + me.role.name+'"](cache, templater, listIds[index], data, function(err, parsed) {'
                                                 + 'finished[index] = parsed;'
                                                 + 'if(++processed == total) {'
                                                     + 'cb(null, finished);'
@@ -353,7 +353,7 @@ exports.handlers = {
                         handle(cachedList);
                     } else {
                         templater.cacheTemplate(listTemplate, {
-                            permission: {name: this.role}
+                            permission: this.role
                         }, function(err, cacheData) {
                             if(err) {
                                 return cb(err);
@@ -387,14 +387,24 @@ exports.handlers = {
             name: 'child.',
             matcher: /child\./,
             handler: function(raw, cb) {
-                this.append(templater.whatDoesItMean(this.state, raw));
+                var instructions = templater.getInstructions(raw);
+
+                if(this.role.wrapTemplateFields && !instructions.noEdit) {
+                    this.appendRaw(this.identifier + ' += "<span id=\\"" + pageId + "\\">";');
+                    this.append(templater.whatDoesItMean(this.state, instructions.field));
+                    this.append('"</span>"');
+                } else {
+                    this.append(templater.whatDoesItMean(this.state, instructions.field));
+                }
                 cb();
             }
         },{
             name: 'parent',
             matcher: /parent\./,
             handler: function(raw, cb) {
-                this.append(templater.whatDoesItMean(this.state, raw));
+                var instructions = templater.getInstructions(raw);
+
+                this.append(templater.whatDoesItMean(this.state, instructions.field));
                 cb();
             }
         }, {
@@ -403,7 +413,14 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw);
 
-                this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"])');
+                if(this.role.wrapTemplateFields && !instructions.noEdit) {
+                    //this.append('"<span id=\\"\\">"');
+                    this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"])');
+                    //this.append('"</span>"');
+                } else {
+                    this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"])');
+                }
+
                 cb();
             }
         }]
@@ -553,7 +570,7 @@ exports.parser = function(options) {
 exports.processTemplateString = function(template, options, cb) {
     var parseOptions = {
         identifier: 'str',
-        role: options.permission.name
+        role: options.permission
     }
     if(options.preState) {
         parseOptions.state = options.preState;
@@ -569,14 +586,14 @@ exports.processTemplateString = function(template, options, cb) {
         // function('cache', 'templater', 'pageId', 'data', 'cb');
 
         var processedOutput = 
-            'var '+parser.identifier+' = "",'
-            + 'found = '+sys.inspect(parseData.itemsToCache)+';'
+            'var ' + parser.identifier + ' = "",'
+            + 'found = ' + sys.inspect(parseData.itemsToCache) + ';'
             + parseData.declarations
             + 'cache.fillIn(data, found, pageId, function(err) {'
                 + parseData.beforeTemplate
                 + buffers.output
                 + parseData.afterTemplate
-                + 'cb(null, '+parser.identifier+');'
+                + 'cb(null, ' + parser.identifier + ');'
             + '});';
         cb(null, {
             funcString: processedOutput,
@@ -768,8 +785,21 @@ exports.createViewIfNull = function(instructions, cb) {
                 };
             }
             templater.couch.saveDesign('master', doc, function(err) {
-                cb(err, viewName);
+                if(err) {
+                    // If we have a document update conflict on saving a map function then 
+                    // most likely another template raced to create it. TODO: This could
+                    // be an issue for multiple lists modifying the design document at once!
+                    // Maybe save them all to make at end?
+                    if(err.error == 'conflict') {
+                        return cb(null, viewName);
+                    }
+                    cb(err, viewName);
+                } else {
+                    cb(err, viewName);
+                }
             });
+        } else {
+            cb(null, viewName);
         }
     });
 };

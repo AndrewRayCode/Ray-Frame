@@ -209,7 +209,7 @@ exports.createPost = function(express, role, prefix, name, functionCall) {
 exports.setUpAccess = function(express) {
     permissions.forEach(function(role) {
         for(var functionName in role.accessors) {
-            server.createPost(express, role.name, role.accessURlPrefix || '', functionName, role.accessors[functionName]);
+            server.createPost(express, role.name, role.accessURLPrefix || '', functionName, role.accessors[functionName]);
         }
     });
 
@@ -242,6 +242,7 @@ exports.serveTemplate = function(user, pageData, cb) {
         locals: {}
     };
 
+    log.error('serving ',pageData.template + user.role);
     // function('cache', 'templater', 'pageId', 'data', 'locals', 'cb');
     templater.templateCache[pageData.template + user.role](cache, templater, pageData._id, data, cb);
 };

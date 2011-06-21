@@ -177,8 +177,10 @@ exports.authSession = function(req) {
     if(!req.session.user) {
         req.session.user = {
             name: 'Anonymous',
-            role: 'public',
-            auth: false
+            //role: 'public',
+            //auth: false
+            role: 'admin',
+            auth: true
         };
     }
 };
