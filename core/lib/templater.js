@@ -390,7 +390,8 @@ exports.handlers = {
                 var instructions = templater.getInstructions(raw);
 
                 if(this.role.wrapTemplateFields && !instructions.noEdit) {
-                    this.appendRaw(this.identifier + ' += "<span id=\\"" + pageId + "\\">";');
+                    // omg this is so grose
+                    this.appendRaw(this.identifier + ' += "<span id=\\"" + data[pageId].child + "' + instructions.attr + '\\">";');
                     this.append(templater.whatDoesItMean(this.state, instructions.field));
                     this.append('"</span>"');
                 } else {
@@ -404,7 +405,13 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw);
 
-                this.append(templater.whatDoesItMean(this.state, instructions.field));
+                if(this.role.wrapTemplateFields && !instructions.noEdit) {
+                    this.appendRaw(this.identifier + ' += "<span id=\\"" + data[pageId].parent + "' + instructions.attr + '\\">";');
+                    this.append(templater.whatDoesItMean(this.state, instructions.field));
+                    this.append('"</span>"');
+                } else {
+                    this.append(templater.whatDoesItMean(this.state, instructions.field));
+                }
                 cb();
             }
         }, {
@@ -665,22 +672,14 @@ exports.getInstructions = function(plip) {
             doc_id: doc_id
         };
 
-    //TODO: better way to identify {{template.html}} import
-    if(split[1] == 'html') {
-        conclusion.include = true;
-		if(fields[1] == 'local') {
-			conclusion.local = true;
-		}
-    } else {
-        // Say if this has an attribute like {{child.attr}}
-        conclusion.attr = split[1] || null;
+    // Say if this has an attribute like {{child.attr}}
+    conclusion.attr = split[1] || null;
 
-        // If this isn't an include it could have things like `view=a.html` or `type=blog`
-        while(l--) {
-            var s = fields[l].split('=');
-            if(s.length > 1) {
-                conclusion[s[0]] = s[1];
-            }
+    // If this isn't an include it could have things like `view=a.html` or `type=blog`
+    while(l--) {
+        var s = fields[l].split('=');
+        if(s.length > 1) {
+            conclusion[s[0]] = s[1];
         }
     }
 
