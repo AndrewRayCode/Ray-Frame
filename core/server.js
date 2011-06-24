@@ -75,7 +75,7 @@ exports.createServer = function(options, cb) {
                             }
                         });
                     } else if(found > 1) {
-                        log.error('Wtf? `'+dbPath+'`: ',rows);
+                        log.error('Wtf? `' + dbPath + '`: ',result.rows);
                         res.writeHead(500, {'Content-Type': 'text/html'});
                         res.end('Internal server errrrrrror');
                     } else {
@@ -167,6 +167,7 @@ exports.resetDatabase = function(couch, callback) {
                             {_id:'header.html', template:'header.html'},
                             {_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
                             {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')}, // another by convention
+                            {_id:'moo', template:'blog.html', title: 'blog post title 2!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')}, // another by convention
 
                             // CRAP DATA
                             {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')} // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)

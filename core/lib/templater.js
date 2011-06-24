@@ -309,7 +309,7 @@ exports.handlers = {
 
                         if(me.parseData.declarations.indexOf(funcName) < 0) {
                             me.parseData.declarations +=
-                                'function '+funcName+'(listIds, cb) {'
+                                'function ' + funcName + '(listIds, cb) {'
                                     + 'var total = listIds.length,'
                                     + '    processed = 0,'
                                     + '    finished = [];'
@@ -320,8 +320,8 @@ exports.handlers = {
                                             + 'data.listData.first = index === 0;'
                                             + 'data.listData.last = index == total;'
                                             // function('cache', 'templater', 'pageId', 'data', 'cb');
-                                            +'templater.templateCache["'+(instructions.view || 'link.html') + me.role.name+'"](cache, templater, listIds[index], data, function(err, parsed) {'
-                                                + 'finished[index] = parsed;'
+                                            +'templater.templateCache["' + (instructions.view || 'link.html') + me.role.name+'"](cache, templater, listIds[index], data, function(err, parsed) {'
+                                                + 'finished[index] = {str: parsed, id: listIds[index]};'
                                                 + 'if(++processed == total) {'
                                                     + 'cb(null, finished);'
                                                 + '}'
@@ -333,14 +333,17 @@ exports.handlers = {
 
                         var pieces = cachedList.buffers.element.split('this.replacechild;');
 
-                        me.appendRaw(funcName + '(data[pageId].variables["'+instructions.field+'"], function(err, renderedItems) {'
-                            + cachedList.buffers.start
-                            + 'for(var x = 0, listItem; listItem = renderedItems[x++];) {'
-                                + pieces[0]
-                                + me.identifier + ' += listItem;'
-                                + pieces[1]
-                            + '}'
-                            + cachedList.buffers.end);
+                        // nasty looking stuff. builds code that outputs list items
+                        me.appendRaw(funcName + '(data[pageId].variables["' + instructions.field + '"], function(err, renderedItems) {');
+                        me.startEdit('pageId', instructions.raw);
+                        me.appendRaw(cachedList.buffers.start + 'for(var x = 0, listItem; listItem = renderedItems[x++];) {');
+                        me.startEdit('"' + instructions.field + ':" + (listItem.id) + ":" + (x - 1)');
+                        me.appendRaw(pieces[0]);
+                        me.append('listItem.str');
+                        me.endEdit();
+                        me.appendRaw(';'+pieces[1] + '}');
+                        me.appendRaw(cachedList.buffers.end);
+                        me.endEdit();
 
                         me.parseData.afterTemplate += '});';
                             //'data["'+instructions.field+'"].parent = pageId;'
@@ -389,14 +392,11 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw);
 
-                if(this.role.wrapTemplateFields && !instructions.noEdit) {
-                    // omg this is so grose
-                    this.appendRaw(this.identifier + ' += "<span id=\\"" + data[pageId].child + "' + instructions.attr + '\\">";');
-                    this.append(templater.whatDoesItMean(this.state, instructions.field));
-                    this.append('"</span>"');
-                } else {
-                    this.append(templater.whatDoesItMean(this.state, instructions.field));
+                if(!instructions.noEdit) {
+                    this.startEdit('data[pageId].child', instructions.attr);
                 }
+                this.append(templater.whatDoesItMean(this.state, instructions.field));
+                this.endEdit();
                 cb();
             }
         },{
@@ -405,13 +405,19 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw);
 
-                if(this.role.wrapTemplateFields && !instructions.noEdit) {
-                    this.appendRaw(this.identifier + ' += "<span id=\\"" + data[pageId].parent + "' + instructions.attr + '\\">";');
-                    this.append(templater.whatDoesItMean(this.state, instructions.field));
-                    this.append('"</span>"');
-                } else {
-                    this.append(templater.whatDoesItMean(this.state, instructions.field));
+                if(!instructions.noEdit) {
+                    this.startEdit('data[pageId].parent', instructions.attr);
                 }
+                this.append(templater.whatDoesItMean(this.state, instructions.field));
+                this.endEdit();
+                cb();
+            }
+        }, {
+            name: 'url',
+            matcher: /^url$/,
+            handler: function(raw, cb) {
+                // just so edit isn't applied
+                this.append('data[pageId].variables.url');
                 cb();
             }
         }, {
@@ -420,14 +426,11 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw);
 
-                if(this.role.wrapTemplateFields && !instructions.noEdit) {
-                    //this.append('"<span id=\\"\\">"');
-                    this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"])');
-                    //this.append('"</span>"');
-                } else {
-                    this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"])');
+                if(!instructions.noEdit) {
+                    this.startEdit('pageId', instructions.field);
                 }
-
+                this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"] || "")');
+                this.endEdit();
                 cb();
             }
         }]
@@ -495,6 +498,22 @@ exports.parser = function(options) {
     this.append = function(str, exact) {
         this.buffers[this.outputBuffer] += (exact ? str : this.identifier + ' += ' + str + ';');
     };
+
+    this.endEdits = [];
+
+    this.startEdit = function(id, attr) {
+        if(this.role.wrapTemplateFields) {
+            this.buffers[this.outputBuffer] += this.identifier
+                + ' += "<span id=\\"" + ' + id + (attr ? ' + ".' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";';
+            this.endEdits.push('</span>');
+        }
+    }
+
+    this.endEdit = function() {
+        if(this.role.wrapTemplateFields && this.endEdits.length) {
+            this.buffers[this.outputBuffer] += this.identifier + ' += "' + this.endEdits.pop() + '";';
+        }
+    }
 
     this.pushState = function(state) {
         this.state.push(state);
