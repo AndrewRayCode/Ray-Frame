@@ -504,7 +504,7 @@ exports.parser = function(options) {
     this.startEdit = function(id, attr) {
         if(this.role.wrapTemplateFields) {
             this.buffers[this.outputBuffer] += this.identifier
-                + ' += "<span id=\\"" + ' + id + (attr ? ' + ".' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";';
+                + ' += "<span id=\\"" + ' + id + (attr ? ' + "@' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";';
             this.endEdits.push('</span>');
         }
     }
