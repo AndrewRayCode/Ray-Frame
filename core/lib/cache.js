@@ -21,7 +21,6 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
                 lists[key] = unknown;
             }
         } else if(unknown.ids) {
-            //log.warn('oh hi ',knowns[pageId]);
             for(var id in knowns[pageId][key]) {
                 if(!(id in knowns)) {
                     keys.push(id);
@@ -31,69 +30,113 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
     }
     // All remaining in 'unknowns' array is now lists
 
-    //log.warn(knowns, unknowns);
     // Count the remaining
     var total = (!!keys.length) + Object.keys(lists).length,
-        processed = 0;
+        processed = 0,
+        hasErrored;
 
     function checkIfFinished() {
-        if(++processed == total) {
+        if(!hasErrored && (++processed == total)) {
             cb();
         }
     }
 
     // TODO: If unknowns do not need extra things in them like {url:...}, unkowns should come in as array of keys not {key: false}
     if(total) {
-        // Get all documents that we know exist by key
-        cache.getDocsByKey(keys, function(err, docs) {
-            if(err) {
-                return cb(err);
-            }
-            for(var x = 0, doc; doc = docs[x++];) {
-                // Modify `knowns` object in place. This is where we add items. Adding locals for convenience. May not be best way
-                knowns[doc._id] = {variables: doc, locals: {}};
-            }
-            checkIfFinished();
-        });
+        if(keys.length) {
+            // Get all documents that we know exist by key
+            cache.getDocsByKey(keys, function(err, docs) {
+                if(err || hasErrored) {
+                    hasErrored = true;
+                    return cb(err);
+                }
+                for(var x = 0, doc; doc = docs[x++];) {
+                    // Modify `knowns` object in place. This is where we add items. Adding locals for convenience. May not be best way
+                    knowns[doc._id] = {variables: doc, locals: {}};
+                }
+
+                checkIfFinished();
+            });
+        }
 
         // Get all lists
         for(var listName in lists) {
+
             // Query the list and get its items
-            (function(fieldName, listName) {
+            (function(listData, listName) {
+
+                var variables = knowns[pageId].variables;
+
                 // Set the parent's fieldname to an empty array
-                knowns[pageId].variables[fieldName] = [];
-                cache.getList(listName, pageId, function(err, rows) {
-                    if(err) {
+                if(!variables[listData.field]) {
+                    variables = variables[listData.field] = [];
+                }
+
+                cache.getList(listName, listData, pageId, function(err, rows) {
+                    // Get out if someone else errored
+                    if(hasErrored) {
+                        return;
+                    } else if(err) {
+                        hasErrored = true;
                         return cb(err);
                     }
+
                     for(var x = 0, row; row = rows[x++];) {
                         // Add the item to the list of knowns
                         knowns[row._id] = {variables: row, locals: {}};
-                        // Add the item to the parent's list field
-                        knowns[pageId].variables[fieldName].push(row._id);
+
+                        // Add the item to the parent's list field if there isn't an array of ids
+                        if(!listData.userSort) {
+                            variables.push(row._id);
+                        }
                     }
+
                     checkIfFinished();
                 });
-            })(lists[listName].field, listName);
+            })(lists[listName], listName);
         }
+
     // Everything is a known
     } else {
         cb();
     }
 };
 
-exports.getList = function(viewName, parentKey, cb) {
-    this.couch.view('master', viewName, {key: parentKey}, function(err, result) {
-        if(err || !result.rows.length) {
-            return cb(err, []);
+exports.getList = function(viewName, viewData, parentKey, cb) {
+    var queryParams = {
+        key: parentKey
+    }, userSort = viewData.userSort;
+
+    if(userSort) {
+        queryParams.include_docs = true;
+    }
+
+    this.couch.view('master', viewName, queryParams, function(err, result) {
+        if(err) {
+            return cb(new Error('Error querying couch view `' + viewName + ':`' + err.error + ', ' + err.reason));
+        } else if(!result.rows.length) {
+            return cb(null, []);
         }
+
         var docs = [];
-        for(var x = 0, row; row = result.rows[x++];) {
-            docs.push(row.value);
+
+        // Docs will come back with the 'doc' field from how the view is structured
+        if(userSort) {
+            for(var x = 0, row; row = result.rows[x++];) {
+                // TODO: We should get it here, and delete the parent key from known ids
+                if(row.doc._id != parentKey) {
+                    docs.push(row.doc);
+                }
+            }
+        // This is a regular view
+        } else {
+            for(var x = 0, row; row = result.rows[x++];) {
+                docs.push(row.value);
+            }
         }
         cb(null, docs);
     });
-}
+};
 
 cache.getDocsByKey = function(keys, cb) {
     this.couch.getDocsByKey(keys, function(err, result) {

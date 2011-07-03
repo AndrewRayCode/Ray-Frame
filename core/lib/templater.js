@@ -353,6 +353,7 @@ exports.handlers = {
                     }
                     me.parseData.itemsToCache[viewName] = {
                         field: instructions.field,
+                        userSort: instructions.sort == 'user',
                         list: true
                     };
 
@@ -614,6 +615,7 @@ exports.processTemplateString = function(template, options, cb) {
             + 'found = ' + sys.inspect(parseData.itemsToCache) + ';'
             + parseData.declarations
             + 'cache.fillIn(data, found, pageId, function(err) {'
+                + 'if(err) { return cb(err); }'
                 + parseData.beforeTemplate
                 + buffers.output
                 + parseData.afterTemplate
@@ -765,7 +767,7 @@ exports.getTemplateDir = function() {
 };
 
 exports.getViewName = function(instructions) {
-    return 'type='+(instructions.type || 'all');
+    return 'type=' + (instructions.type || 'all') + (instructions.sort || '');
 };
 
 exports.createViewIfNull = function(instructions, cb) {
@@ -775,47 +777,63 @@ exports.createViewIfNull = function(instructions, cb) {
         }
         var viewName = templater.getViewName(instructions);
 
-        if(!doc.views[viewName]) {
-            // View does not exist. Make it!
-            if(instructions.type) {
+        if(doc.views[viewName]) {
+            cb(null, viewName);
+
+        // View does not exist. Make it!
+        } else {
+            // Sorted via an array of ids on the main document's field. Using include_docs=true
+            // will make this view return the docs when queried 
+            if(instructions.sort == 'user') {
                 doc.views[viewName] = {
                     map: utils.formatFunction(function(doc) {
-                        if(doc.template) {
-                            var views = $1;
-                            for(var x=0; x<views.length; x++) {
-                                if(doc.template == views[x] + '.html') {
-                                    emit(doc.parent_id, doc);
-                                    break;
-                                }
+                        var field = doc[$1];
+                        if(doc.template && field) {
+                            emit(doc._id, {_id: doc._id});
+
+                            for(var x = 0, id; id = field[x++];) {
+                                emit(doc._id, {_id: id});
                             }
                         }
-                    }, instructions.type.split(','))
+                    }, instructions.field)
                 };
+            // Sorted programmatically
             } else {
-                doc.views[viewName] = {
-                    map: function(doc) {
-                        if(doc.template) {
-                            emit(doc.parent_id, doc);
-                        }
-                    }
-                };
-            }
-            templater.couch.saveDesign('master', doc, function(err) {
-                if(err) {
-                    // If we have a document update conflict on saving a map function then 
-                    // most likely another template raced to create it. TODO: This could
-                    // be an issue for multiple lists modifying the design document at once!
-                    // Maybe save them all to make at end?
-                    if(err.error == 'conflict') {
-                        return cb(null, viewName);
-                    }
-                    cb(err, viewName);
+                if(instructions.type) {
+                    doc.views[viewName] = {
+                        map: utils.formatFunction(function(doc) {
+                            if(doc.template) {
+                                var views = $1;
+                                for(var x=0; x<views.length; x++) {
+                                    if(doc.template == views[x] + '.html') {
+                                        emit(doc.parent_id, doc);
+                                        break;
+                                    }
+                                }
+                            }
+                        }, instructions.type.split(','))
+                    };
                 } else {
-                    cb(err, viewName);
+                    doc.views[viewName] = {
+                        map: function(doc) {
+                            if(doc.template) {
+                                emit(doc.parent_id, doc);
+                            }
+                        }
+                    };
                 }
+            }
+
+            templater.couch.saveDesign('master', doc, function(err) {
+                // If we have a document update conflict on saving a map function then 
+                // most likely another template raced to create it. TODO: This could
+                // be an issue for multiple lists modifying the design document at once!
+                // Maybe save them all to make at end?
+                if(err && err.error == 'conflict') {
+                    return cb(null, viewName);
+                }
+                cb(err, viewName);
             });
-        } else {
-            cb(null, viewName);
         }
     });
 };

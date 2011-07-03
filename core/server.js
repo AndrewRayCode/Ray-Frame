@@ -170,7 +170,7 @@ exports.resetDatabase = function(couch, callback) {
 
                             // CRAP DATA
                             {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')},
-                            {_id:'moo', template:'blog.html', title: 'blog post title 2!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
+                            {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
 
                             // TODO: This should be a core template, overwritable (there currently are no core templates)
                             {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}
