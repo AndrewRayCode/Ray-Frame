@@ -163,14 +163,17 @@ exports.resetDatabase = function(couch, callback) {
                             // TEST DATA
 
                             // root is special case. Let couch name other keys for page objects
-                            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'test', url: utils.sanitizeUrl('/'), parents: []},
+                            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'test', url: utils.sanitizeUrl('/'),
+                                parents: [], pages: ['moo', 'abcdeft']},
                             {_id:'header.html', template:'header.html'},
                             {_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
-                            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')}, // another by convention
-                            {_id:'moo', template:'blog.html', title: 'blog post title 2!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')}, // another by convention
 
                             // CRAP DATA
-                            {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')} // another by convention TODO: This should be a core template, overwritable (there currently are no core templates)
+                            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')},
+                            {_id:'moo', template:'blog.html', title: 'blog post title 2!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
+
+                            // TODO: This should be a core template, overwritable (there currently are no core templates)
+                            {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}
                         ], function(err) {
                             log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
                             callback(err);

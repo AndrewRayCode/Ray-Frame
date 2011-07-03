@@ -3,27 +3,37 @@ var cache = module.exports,
 
 cache.fillIn = function(knowns, unknowns, pageId, cb) {
     //log.error('knowns ' , knowns ,' and ',unknowns);
-
-    var keys = [];
+    var keys = [],
+        lists = {},
+        unknown;
 
     // Delete anything already known
     for(var key in unknowns) {
-        if(unknowns[key] === false) {
-            delete unknowns[key];
+        unknown = unknowns[key];
+
+        if(unknown === false) {
             if(!(key in knowns)) {
                 keys.push(key);
             }
         // Delete any lists that already exist on parents
-        } else if(unknowns[key].list) {
-            if(knowns[pageId][unknowns[key].field]) {
-                delete unknowns[key];
+        } else if(unknown.list) {
+            if(!knowns[pageId][unknown.field]) {
+                lists[key] = unknown;
+            }
+        } else if(unknown.ids) {
+            //log.warn('oh hi ',knowns[pageId]);
+            for(var id in knowns[pageId][key]) {
+                if(!(id in knowns)) {
+                    keys.push(id);
+                }
             }
         }
     }
     // All remaining in 'unknowns' array is now lists
 
+    //log.warn(knowns, unknowns);
     // Count the remaining
-    var total = (!!keys.length) + Object.keys(unknowns).length,
+    var total = (!!keys.length) + Object.keys(lists).length,
         processed = 0;
 
     function checkIfFinished() {
@@ -47,8 +57,7 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
         });
 
         // Get all lists
-        for(var listName in unknowns) {
-
+        for(var listName in lists) {
             // Query the list and get its items
             (function(fieldName, listName) {
                 // Set the parent's fieldname to an empty array
@@ -65,7 +74,7 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
                     }
                     checkIfFinished();
                 });
-            })(unknowns[listName].field, listName);
+            })(lists[listName].field, listName);
         }
     // Everything is a known
     } else {

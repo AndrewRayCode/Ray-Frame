@@ -290,80 +290,78 @@ exports.handlers = {
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw),
                     listTemplate = (instructions.listBody || 'list') + '.html',
-                    cachedList = templater.rawCache[listTemplate + this.role.name],
+                    cachedListCheck = templater.rawCache[listTemplate + this.role.name],
                     me = this;
-                
-                // TODO: User sort (does not use list)
-                if(instructions.sort == 'user') {
-                    return cb();
-                }
-                // Create view if needed
-                templater.createViewIfNull(instructions, function(err, viewName) {
-                    function handle(cachedList) {
-                        // Add our list plip to known cache items
-                        me.parseData.itemsToCache[viewName] = {
-                            field: instructions.field,
-                            list: true
-                        };
-                        var funcName = utils.listNameToFunctionName(viewName);
 
-                        if(me.parseData.declarations.indexOf(funcName) < 0) {
-                            me.parseData.declarations +=
-                                'function ' + funcName + '(listIds, cb) {'
-                                    + 'var total = listIds.length,'
-                                    + '    processed = 0,'
-                                    + '    finished = [];'
-                                    + 'data.listData = {total: total};'
-                                    + 'for(var x = 0, l = listIds.length; x < l; x++) {'
-                                        + '(function(index) {'
-                                            + 'data.listData.index = index;'
-                                            + 'data.listData.first = index === 0;'
-                                            + 'data.listData.last = index == total;'
-                                            // function('cache', 'templater', 'pageId', 'data', 'cb');
-                                            +'templater.templateCache["' + (instructions.view || 'link.html') + me.role.name+'"](cache, templater, listIds[index], data, function(err, parsed) {'
-                                                + 'finished[index] = {str: parsed, id: listIds[index]};'
-                                                + 'if(++processed == total) {'
-                                                    + 'cb(null, finished);'
-                                                + '}'
-                                            + '})'
-                                        + '})(x);'
-                                    + '}'
-                                + '};';
-                        }
-
-                        var pieces = cachedList.buffers.element.split('this.replacechild;');
-
-                        // nasty looking stuff. builds code that outputs list items
-                        me.appendRaw(funcName + '(data[pageId].variables["' + instructions.field + '"], function(err, renderedItems) {');
-                        me.startEdit('pageId', instructions.raw);
-                        me.appendRaw(cachedList.buffers.start + 'for(var x = 0, listItem; listItem = renderedItems[x++];) {');
-                        me.startEdit('"' + instructions.field + ':" + (listItem.id) + ":" + (x - 1)');
-                        me.appendRaw(pieces[0]);
-                        me.append('listItem.str');
-                        me.endEdit();
-                        me.appendRaw(';'+pieces[1] + '}');
-                        me.appendRaw(cachedList.buffers.end);
-                        me.endEdit();
-
-                        me.parseData.afterTemplate += '});';
-                            //'data["'+instructions.field+'"].parent = pageId;'
-                            //+ 'templater.templateCache["'+instructions.field+this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
-                            //+ this.identifier + ' += parsed;';
-                        cb();
+                var handle = function(err, cachedList) {
+                    if(err) {
+                        return cb(err);
+                    }
+                    if(me.parseData.declarations.indexOf('function renderList(') < 0) {
+                        me.parseData.declarations +=
+                            'function renderList(listIds, listTemplateName, cb) {'
+                                + 'var total = listIds.length,'
+                                + '    processed = 0,'
+                                + '    finished = [];'
+                                + 'data.listData = {total: total};'
+                                + 'for(var x = 0, l = listIds.length; x < l; x++) {'
+                                    + '(function(index) {'
+                                        + 'data.listData.index = index;'
+                                        + 'data.listData.first = index === 0;'
+                                        + 'data.listData.last = index == total;'
+                                        // function('cache', 'templater', 'pageId', 'data', 'cb');
+                                        +'templater.templateCache[listTemplateName](cache, templater, listIds[index], data, function(err, parsed) {'
+                                            + 'finished[index] = {str: parsed, id: listIds[index]};'
+                                            + 'if(++processed == total) {'
+                                                + 'cb(null, finished);'
+                                            + '}'
+                                        + '})'
+                                    + '})(x);'
+                                + '}'
+                            + '};';
                     }
 
-                    if(cachedList) {
-                        handle(cachedList);
+                    var pieces = cachedList.buffers.element.split('this.replacechild;');
+
+                    // nasty looking stuff. builds code that outputs list items
+                    me.appendRaw('renderList(data[pageId].variables["' + instructions.field + '"], "'
+                                + (instructions.view || 'link.html') + me.role.name
+                                + '", function(err, renderedItems) {');
+
+                    // surrounding edit for li
+                    me.startEdit('pageId', instructions.raw);
+                    me.appendRaw(cachedList.buffers.start + 'for(var x = 0, listItem; listItem = renderedItems[x++];) {');
+
+                    // surrounding edit for list item
+                    me.startEdit('"' + instructions.field + ':" + (listItem.id) + ":" + (x - 1)');
+                    me.appendRaw(pieces[0]);
+                    me.append('listItem.str');
+                    me.endEdit();
+
+                    me.appendRaw(';'+pieces[1] + '}');
+                    me.appendRaw(cachedList.buffers.end);
+                    me.endEdit();
+
+                    me.parseData.afterTemplate += '});';
+                    cb();
+                }
+                
+                // Create view if needed
+                templater.createViewIfNull(instructions, function(err, viewName) {
+                    if(err) {
+                        return cb(err);
+                    }
+                    me.parseData.itemsToCache[viewName] = {
+                        field: instructions.field,
+                        list: true
+                    };
+
+                    if(cachedListCheck) {
+                        handle(null, cachedListCheck);
                     } else {
                         templater.cacheTemplate(listTemplate, {
                             permission: this.role
-                        }, function(err, cacheData) {
-                            if(err) {
-                                return cb(err);
-                            }
-
-                            handle(cacheData);
-                        });
+                        }, handle);
                     }
                 });
             }
@@ -504,8 +502,8 @@ exports.parser = function(options) {
     this.startEdit = function(id, attr) {
         if(this.role.wrapTemplateFields) {
             this.buffers[this.outputBuffer] += this.identifier
-                + ' += "<span id=\\"" + ' + id + (attr ? ' + "@' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";';
-            this.endEdits.push('</span>');
+                + ' += "<q id=\\"" + ' + id + (attr ? ' + "@' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";';
+            this.endEdits.push('</q>');
         }
     }
 
