@@ -767,7 +767,7 @@ exports.getTemplateDir = function() {
 };
 
 exports.getViewName = function(instructions) {
-    return 'type=' + (instructions.type || 'all') + (instructions.sort || '');
+    return 'type=' + (instructions.type || 'all') + (instructions.sort ? '-' + instructions.sort + '-' + instructions.field : '');
 };
 
 exports.createViewIfNull = function(instructions, cb) {
