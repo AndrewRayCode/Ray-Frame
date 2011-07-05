@@ -257,5 +257,5 @@ exports.serveTemplate = function(user, pageData, cb) {
 
     log.error('serving ',pageData.template + user.role);
     // function('cache', 'templater', 'pageId', 'data', 'locals', 'cb');
-    templater.templateCache[pageData.template + user.role](cache, templater, pageData._id, data, cb);
+    templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, cb);
 };

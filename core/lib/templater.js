@@ -109,7 +109,7 @@ exports.mangleToFunction = function(funcStr) {
     ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
     ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
 
-    return new Function('cache', 'templater', 'pageId', 'data', 'cb', uglifier.gen_code(ast));
+    return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', uglifier.gen_code(ast));
 };
 
 // Template tag handlers. At some point this needs to be moved to its own file, or something, and users need to be able
@@ -272,7 +272,7 @@ exports.handlers = {
                 // function('cache', 'templater', 'pageId', 'data', 'cb');
                 this.appendRaw(
                     'data["'+instructions.field+'"].parent = pageId;'
-                    + 'templater.templateCache["'+instructions.field + this.role.name+'"](cache, templater, "'+instructions.field+'", data, function(err, parsed) {'
+                    + 'templater.templateCache["'+instructions.field + this.role.name+'"](cache, templater, user, "'+instructions.field+'", data, function(err, parsed) {'
                     + this.identifier + ' += parsed;');
 
                 this.parseData.afterTemplate += '});';
@@ -314,7 +314,7 @@ exports.handlers = {
                                         + 'data.listData.first = index === 0;'
                                         + 'data.listData.last = index == total;'
                                         // function('cache', 'templater', 'pageId', 'data', 'cb');
-                                        +'templater.templateCache[listTemplateName](cache, templater, listIds[index], data, function(err, parsed) {'
+                                        +'templater.templateCache[listTemplateName](cache, templater, user, listIds[index], data, function(err, parsed) {'
                                             + 'finished[index] = {str: parsed, id: listIds[index]};'
                                             + 'if(++processed == total) {'
                                                 + 'cb(null, finished);'
