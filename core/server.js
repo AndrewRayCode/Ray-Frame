@@ -90,9 +90,14 @@ exports.createServer = function(options, cb) {
         // Tell our template library what theme to use
         templater.addTransientFunction('templater.getInstructions');
         templater.setReferences(couch);
+
+        var hasErrored;
         templater.cacheTheme(theme, permissions, function(err) {
-            if(err) {
+            if(err && !hasErrored) {
+                hasErrored = true;
                 return log.error('Error setting theme!: ',err);
+            } else if(hasErrored) {
+                return;
             }
             templater.autoRevalidate();
 
@@ -172,9 +177,9 @@ exports.resetDatabase = function(couch, callback) {
                             {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')},
                             {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
 
-                            {_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')},
-                            {_id:'ab2', template:'blog.html', title: 'other blog 2 (first)', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
-                            {_id:'ab3', template:'blog.html', title: 'other blog 3 (midle)', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
+                            {_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogposta')},
+                            {_id:'ab2', template:'blog.html', title: 'other blog 2 (first)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostb')},
+                            {_id:'ab3', template:'blog.html', title: 'other blog 3 (midle)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostc')},
 
                             // TODO: This should be a core template, overwritable (there currently are no core templates)
                             {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}

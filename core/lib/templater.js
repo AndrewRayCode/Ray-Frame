@@ -42,7 +42,7 @@ exports.cacheTheme = function(theme, permissions, cb) {
             for(var x = 0, permission; permission = permissions[x++];) {
                 templater.cacheTemplate(filepath, {permission: permission}, function(err) {
                     if(err || (++processed == total)) {
-                        cb(err);
+                        return cb(err);
                     }
                 });
             }
@@ -64,7 +64,8 @@ exports.autoRevalidate = function() {
 
 exports.cacheTemplate = function(filepath, options, cb) {
     var baseName = path.basename(filepath),
-        cachedName = baseName + (options.permission ? options.permission.name : '');
+        cachedName = baseName + (options.permission ? options.permission.name : ''),
+        hasErrored;
 
     // Was this template (like an include wrapper) already parsed?
     if(cachedName in templater.templateCache) {
@@ -73,8 +74,11 @@ exports.cacheTemplate = function(filepath, options, cb) {
 
     templater.getTemplateSource(baseName, function(err, contents) {
         templater.processTemplateString(contents, options, function(err, data) {
-            if(err) {
-                return cb(err);
+            if(err && !hasErrored) {
+                hasErrored = true;
+                return cb(new Error('Error processing `' + filepath + '`: ' + err.message));
+            } else if(hasErrored) {
+                return;
             }
 
             //log.error(cachedName);
@@ -494,6 +498,7 @@ exports.parser = function(options) {
         this.outputBuffer = this.bufferStack[this.bufferStack.length - 1];
     };
 
+    // Return all tracked buffers as {bufferName: string, bufferName2...}
     this.getBuffers = function() {
         var ret = {};
         for(var bufName in this.buffers) {
@@ -502,6 +507,7 @@ exports.parser = function(options) {
         return ret;
     };
 
+    // Get a named buffer, forces final string concat
     this.getBuffer = function(name) {
         this.flushStringRun(name);
         return this.buffers[name].buffer.join('');
@@ -555,19 +561,25 @@ exports.parser = function(options) {
         }
         this.state.pop();
         cb();
-    }
+    };
 
     this.parse = function(input, cb) {
         this.swapBuffer('output');
 
         var html = '',
             me = this,
-            flower = new flowControl(me);
+            flower = new flowControl(me),
+            lineNumber = 1;
 
         for(var x = 0, l = input.length; x < l; x++) {
             var character = input[x];
             // the html variable is used to track blocks of plain old html text
             html += character;
+
+            // Track line we are processing for error output
+            if(character == '\n') {
+                lineNumber++;
+            }
 
             if(~this.starts.indexOf(character)) {
                 for(var groupName in templater.handlers) {
@@ -577,8 +589,8 @@ exports.parser = function(options) {
                         var end = input.indexOf(group.end, x + 1),
                             contents = input.substring(x + group.start.length, end);
 
-                        if(!end) {
-                            cb(new Error('Opening `'+group.start+'` found but no closing `'+group.end+'` found!'));
+                        if(end == -1) {
+                            return cb(new Error('Opening `' + group.start + '` found but no closing `' + group.end + '` found on line ' + lineNumber + '!'));
                         }
                         if(html.length) {
                             (function(html) {
@@ -617,7 +629,7 @@ exports.parser = function(options) {
         flower.add(function() {
             cb(null, me.parseData, me.buffers);
         }).onError(cb).execute();
-    }
+    };
 };
 
 // Take raw template string from the filesystem and feed it to the parser. Store the parser's output in a meaningful way
