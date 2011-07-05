@@ -464,6 +464,7 @@ exports.parser = function(options) {
     this.starts = [];
     this.buffers = {};
     this.bufferStack = [];
+    this.endEdits = [];
 
     // Cache all of the starting tags, like `{%` and `{{` to look for when scanning
     for(var groupName in templater.handlers) {
@@ -478,7 +479,12 @@ exports.parser = function(options) {
         this.bufferStack.push(buff);
 
         if(this.buffers[buff] === undefined) {
-            this.buffers[buff] = '';
+            this.buffers[buff] = {
+                // The list of commands that will become the final function
+                buffer: [],
+                // Store up string concat statements to optimize code
+                stringRun: []
+            };
         }
     };
 
@@ -488,6 +494,19 @@ exports.parser = function(options) {
         this.outputBuffer = this.bufferStack[this.bufferStack.length - 1];
     };
 
+    this.getBuffers = function() {
+        var ret = {};
+        for(var bufName in this.buffers) {
+            ret[bufName] = this.getBuffer(bufName);
+        }
+        return ret;
+    };
+
+    this.getBuffer = function(name) {
+        this.flushStringRun(name);
+        return this.buffers[name].buffer.join('');
+    };
+
     // Append straight code to the template
     this.appendRaw = function(str) {
         this.append(str, true);
@@ -495,24 +514,35 @@ exports.parser = function(options) {
 
     // Append code to the output string eventually shown to the user
     this.append = function(str, exact) {
-        this.buffers[this.outputBuffer] += (exact ? str : this.identifier + ' += ' + str + ';');
+        if(exact) {
+            this.flushStringRun(this.outputBuffer);
+            this.buffers[this.outputBuffer].buffer.push(str);
+        } else {
+            this.buffers[this.outputBuffer].stringRun.push(str);
+        }
     };
 
-    this.endEdits = [];
+    this.flushStringRun = function(bufferName) {
+        var buffer = this.buffers[bufferName];
+        if(buffer.stringRun.length) {
+            buffer.buffer.push(this.identifier + ' += ' + buffer.stringRun.join(' + ') + ';');
+            buffer.stringRun = [];
+        }
+    };
 
     this.startEdit = function(id, attr) {
         if(this.role.wrapTemplateFields) {
-            this.buffers[this.outputBuffer] += this.identifier
-                + ' += "<q id=\\"" + ' + id + (attr ? ' + "@' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";';
+            this.buffers[this.outputBuffer].buffer.push(this.identifier
+                + ' += "<q id=\\"" + ' + id + (attr ? ' + "@' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";');
             this.endEdits.push('</q>');
         }
-    }
+    };
 
     this.endEdit = function() {
         if(this.role.wrapTemplateFields && this.endEdits.length) {
-            this.buffers[this.outputBuffer] += this.identifier + ' += "' + this.endEdits.pop() + '";';
+            this.buffers[this.outputBuffer].buffer.push(this.identifier + ' += "' + this.endEdits.pop() + '";');
         }
-    }
+    };
 
     this.pushState = function(state) {
         this.state.push(state);
@@ -603,7 +633,7 @@ exports.processTemplateString = function(template, options, cb) {
 
     var parser = new templater.parser(parseOptions);
 
-    parser.parse(template, function(err, parseData, buffers) {
+    parser.parse(template, function(err, parseData) {
         if(err) {
             return cb(err);
         }
@@ -617,10 +647,11 @@ exports.processTemplateString = function(template, options, cb) {
             + 'cache.fillIn(data, found, pageId, function(err) {'
                 + 'if(err) { return cb(err); }'
                 + parseData.beforeTemplate
-                + buffers.output
+                + parser.getBuffer('output')
                 + parseData.afterTemplate
                 + 'cb(null, ' + parser.identifier + ');'
             + '});';
+
         cb(null, {
             funcString: processedOutput,
             // Store our raw data in case something else needs to tear it apart
@@ -630,7 +661,7 @@ exports.processTemplateString = function(template, options, cb) {
                 itemsToCache: parseData.itemsToCache,
                 declarations: parseData.declarations,
                 identifier: parser.identifier,
-                buffers: buffers
+                buffers: parser.getBuffers()
             }
         });
     });
