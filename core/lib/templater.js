@@ -60,7 +60,7 @@ exports.autoRevalidate = function() {
             log.info('Cached theme `' + templater.theme + '`');
         });
     });
-}
+};
 
 exports.cacheTemplate = function(filepath, options, cb) {
     var baseName = path.basename(filepath),
@@ -117,20 +117,58 @@ exports.mangleToFunction = function(funcStr) {
 exports.handlers = {
     textNode: {
         handler: function(raw, cb) {
-            var output = '';
+            var output = raw,
+                bodyCount;
 
+            // Escape backslashes and quotes
+            function escapeChars(str) {
+                return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            }
+
+            // Do not replace whitespace in pre mode
             if(this.state.indexOf('pre') == -1) {
-                raw = raw.replace(/\r|\n/g, ' ').replace(/\s+/g, ' ');
-            }
-            raw = raw.replace(/\\/g, '\\\\');
+                output = output.replace(/\r|\n/g, ' ').replace(/\s+/g, ' ');
 
-            for(var x = 0; x < raw.length; x++) {
-                if(raw[x] == '"') {
-                    output += '\\';
+                // Append role includes (like admin javascript files) to the closing body tag if we find one
+                if(this.role.wrapTemplateFields && this.role.includes && (bodyCount = output.match(/<\/body>/ig))) {
+                    if(bodyCount.length > 1) {
+                        log.warn('Warning, more than one closing body tag found in template. Appending admin functions to last.');
+                    }
+
+                    // 'a</body></html>' becomes ['a', 'admin functions', '</html>']
+                    output = output.split('</body>');
+                    output.splice(-1, 0, this.role.includes);
+
+                    // Rebuild the string, but when we get to the second to last entry (the admin functions), then
+                    // append them to the output
+                    var upToBody = '';
+                    for(var x = 0; x < output.length - 1; x++) {
+                        if(x == output.length - 2) {
+
+                            this.append('"' + escapeChars(upToBody) + '"');
+
+                            // These lines are commented out because toplevel is tricky to set when a page is wrapped
+                            // If there are issues with multiple </body> tags on a page, this may need to be 
+                            // revisted
+
+                            //this.appendRaw('if(data[pageId].locals.topLevel) {');
+
+                            this.append('"' + escapeChars(output[x]) + '"');
+
+                            //this.appendRaw('}')[pageId];
+
+                            this.append('"</body>' + escapeChars(output[x + 1]) + '"');
+                        } else {
+                            upToBody += output[x] + '</body>';
+                        }
+                    }
+                } else {
+                    this.append('"' + escapeChars(output) + '"');
                 }
-                output += raw[x];
+            } else {
+                this.append('"' + escapeChars(output) + '"');
             }
-            this.append('"' + output + '"');
+
             cb();
         }
     },

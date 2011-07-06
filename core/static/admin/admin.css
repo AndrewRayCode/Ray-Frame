@@ -7,3 +7,7 @@
 .list_edit_btn {position:absolute; width:10px; height:10px; background:orange; cursor:pointer; z-index:9999; opacity:0.5em;}
 .list_views {background:blue; color:white; border:1px solid white; padding:10px;}
 .list_views div {cursor:pointer; border-bottom:1px dotted green;}
+
+q.rayframe-edit {margin:0; padding:0;}
+q.rayframe-edit:before {display:none;}
+q.rayframe-edit:after {display:none;}
