@@ -21,7 +21,7 @@ var RayFrameUtils = function() {
 };
 var RayFrame = new RayFrameUtils();
 
-(function(){
+(function($){
 
     // TODO: Namespace the edit classes to avoid potential website conflicts
     var hover = RayFrame.$('<a></a>').addClass('edit_btn'),
@@ -45,7 +45,7 @@ var RayFrame = new RayFrameUtils();
         elem = RayFrame.$(elem);
 
         // Edit buttons for fields
-        elem.find('.edit_me').each(function(i, item) {
+        elem.find('.rayframe-edit').each(function(i, item) {
             item = RayFrame.$(item);
             pos = item.css('border', '2px solid red').offset();
             editButtons[item.attr('id')] = hover.clone().css({top:pos.top, left:pos.left}).appendTo(document.body).data('match', item);
@@ -190,5 +190,4 @@ var RayFrame = new RayFrameUtils();
         currentEditor.target.css({display: 'block'});
         currentEditor.edit.css({display: 'block'});
     }
-})();
-
+})(RayFrame.$);
