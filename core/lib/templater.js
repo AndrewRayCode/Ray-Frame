@@ -130,7 +130,7 @@ exports.handlers = {
 
             // Do not replace whitespace in pre mode
             if(this.state.indexOf('pre') == -1) {
-                output = output.replace(/\r|\n/g, ' ').replace(/\s+/g, ' ');
+                //output = output.replace(/\r|\n/g, ' ').replace(/\s+/g, ' ');
 
                 // Append role includes (like admin javascript files) to the closing body tag if we find one
                 if(this.role.wrapTemplateFields
@@ -145,11 +145,12 @@ exports.handlers = {
                     // 'a</body></html>' becomes ['a', 'admin functions', '</html>']
                     output = output.split(/(<\/body>)/g);
                     output.splice(-2, 0,
-                        ('<script>'
-                            + 'var current_id="$$1", current_url_id="$$2", access_urls="$$3";'
+                        (this.role.includes
+                        + '<script>'
+                            + 'RayFrame.current_id="$$1"; RayFrame.current_url_id="$$2"; RayFrame.access_urls="$$3";'
                             + templater.transientFunctions
-                        + '</script>'
-                        + this.role.includes)
+                        + '</script>')
+                        
                     );
 
                     // Rebuild the string, but when we get to the second to last entry (the admin functions), then
@@ -367,18 +368,25 @@ exports.handlers = {
                                 + (instructions.view || 'link.html') + me.role.name
                                 + '", function(err, renderedItems) {');
 
-                    // surrounding edit for li
+                    // surrounding edit for list
                     me.startEdit('pageId', instructions.raw);
                     me.appendRaw(cachedList.buffers.start + 'for(var x = 0, listItem; listItem = renderedItems[x++];) {');
 
                     // surrounding edit for list item
                     me.startEdit('"' + instructions.field + ':" + (listItem.id) + ":" + (x - 1)');
+
+                    // list item opening (split on {% child %} )
                     me.appendRaw(pieces[0]);
+
+                    // grabbed programmaticaly from template render
                     me.append('listItem.str');
+
+                    // list item closing
+                    me.appendRaw(';' + pieces[1] + ';');
                     me.endEdit();
 
-                    me.appendRaw(';'+pieces[1] + '}');
-                    me.appendRaw(cachedList.buffers.end);
+                    // end of for loop, end edit
+                    me.appendRaw('}' + cachedList.buffers.end);
                     me.endEdit();
 
                     me.parseData.afterTemplate += '});';
@@ -434,7 +442,10 @@ exports.handlers = {
                     this.startEdit('data[pageId].child', instructions.attr);
                 }
                 this.append(templater.whatDoesItMean(this.state, instructions.field));
-                this.endEdit();
+
+                if(!instructions.noEdit) {
+                    this.endEdit();
+                }
                 cb();
             }
         },{
@@ -447,7 +458,10 @@ exports.handlers = {
                     this.startEdit('data[pageId].parent', instructions.attr);
                 }
                 this.append(templater.whatDoesItMean(this.state, instructions.field));
-                this.endEdit();
+
+                if(!instructions.noEdit) {
+                    this.endEdit();
+                }
                 cb();
             }
         }, {
@@ -468,7 +482,10 @@ exports.handlers = {
                     this.startEdit('pageId', instructions.field);
                 }
                 this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"] || "")');
-                this.endEdit();
+
+                if(!instructions.noEdit) {
+                    this.endEdit();
+                }
                 cb();
             }
         }]
@@ -573,15 +590,16 @@ exports.parser = function(options) {
 
     this.startEdit = function(id, attr) {
         if(this.role.wrapTemplateFields) {
-            this.buffers[this.outputBuffer].buffer.push(this.identifier
+            this.appendRaw(this.identifier
                 + ' += "<q id=\\"" + ' + id + (attr ? ' + "@' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";');
+
             this.endEdits.push('</q>');
         }
     };
 
     this.endEdit = function() {
         if(this.role.wrapTemplateFields && this.endEdits.length) {
-            this.buffers[this.outputBuffer].buffer.push(this.identifier + ' += "' + this.endEdits.pop() + '";');
+            this.append('"' + this.endEdits.pop() + '"');
         }
     };
 
