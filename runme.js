@@ -7,5 +7,6 @@ server.createServer({
     theme: 'jaded',
     server_port: 8080,
     secret: 'hackme',
-    hard_reset: true
+    hard_reset: true,
+    //debug: true
 });

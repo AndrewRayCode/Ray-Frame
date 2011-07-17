@@ -24,9 +24,14 @@ exports.createServer = function(options, cb) {
         core_static = 'core/static/',
         user_static = 'user/themes/' + theme + '/static/';
 
+    this.debug = options.debug;
     this.couch = couch;
-    cache.couch = couch;
     this.express = express;
+
+    templater.couch = couch;
+    templater.debug = this.debug;
+
+    cache.couch = couch;
 
     //log.error( __dirname + '/../' + user_static);
 
@@ -88,8 +93,7 @@ exports.createServer = function(options, cb) {
         });
 
         // Tell our template library what theme to use
-        templater.addTransientFunction('templater.getInstructions');
-        templater.setReferences(couch);
+        templater.addTransientFunction('getInstructions', templater.getInstructions);
 
         var hasErrored;
         templater.cacheTheme(theme, permissions, function(err) {
@@ -107,12 +111,13 @@ exports.createServer = function(options, cb) {
                 if(ya) {
                     var transients = require(t);
                     for(var x in transients) {
-                        templater.addTransientFunction([x, transients[x]]);
+                        templater.addTransientFunction(x, transients[x]);
                     }
                 }
+                templater.addNamespace('utils');
                 // Also copy over all the utility functions to be transients
                 for(var x in utils) {
-                    templater.addTransientFunction([x, utils[x]]);
+                    templater.addNamespacedTransientFunction('utils', x, utils[x]);
                 }
                 server.setUpAccess(express);
 

@@ -17,11 +17,6 @@ exports.controlStatements = /\{% \S+? %\}/g;
 // Function code available on front end and back end
 exports.transientFunctions = '';
 
-// Set variables we need
-exports.setReferences = function(db) {
-    templater.couch = db;
-};
-
 exports.cacheTheme = function(theme, permissions, cb) {
     templater.templateCache = {};
     templater.rawCache = {};
@@ -102,17 +97,20 @@ exports.cacheTemplate = function(filepath, options, cb) {
     });
 };
 
+exports.uglify = function(funcStr) {
+    var ast = parser.parse(funcStr); // parse code and get the initial AST
+    ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
+    ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
+    return uglifier.gen_code(ast);
+};
+
 exports.mangleToFunction = function(funcStr) {
-    var ast;
     try {
-        var ast = parser.parse(funcStr); // parse code and get the initial AST
+        funcStr = templater.uglify(funcStr);
     } catch(e) {
         throw new Error('Template function string could not be parsed, syntax error found by uglify-js. This is bad.');
     }
-    ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
-    ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
-
-    return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', uglifier.gen_code(ast));
+    return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
 };
 
 // Template tag handlers. At some point this needs to be moved to its own file, or something, and users need to be able
@@ -144,14 +142,35 @@ exports.handlers = {
 
                     // 'a</body></html>' becomes ['a', 'admin functions', '</html>']
                     output = output.split(/(<\/body>)/g);
+
+                    var transients = templater.transientFunctions;
+                    if(!templater.debug) {
+                        try {
+                            transients = templater.uglify(transients)
+                        } catch(e) {
+                            throw new Error('Syntax error parsing transient functions!');
+                        }
+                    }
                     output.splice(-2, 0,
                         (this.role.includes
                         + '<script>'
                             + 'RayFrame.current_id="$$1"; RayFrame.current_url_id="$$2"; RayFrame.access_urls="$$3";'
-                            + templater.transientFunctions
+                            + transients
                         + '</script>')
                         
                     );
+
+                    var permissionIndex = templater.permissions.length,
+                        urls = {};
+
+                    while(permissionIndex--) {
+                        var permission = templater.permissions[permissionIndex];
+                        urls[permission.name] = permission.accessUrl || permission.name;
+
+                        if(this.role.name == permission.name) {
+                            break;
+                        }
+                    }
 
                     // Rebuild the string, but when we get to the second to last entry (the admin functions), then
                     // append them to the output
@@ -159,7 +178,7 @@ exports.handlers = {
                         ('"' + escapeChars(output.join('')) + '"')
                             .replace('$$1', '" + entryId + "')
                             .replace('$$2', '" + data[entryId].variables.url + "')
-                            //.replace('$$3', '""')
+                            .replace('$$3', sys.inspect(urls))
                         );
                 } else {
                     this.append('"' + escapeChars(output) + '"');
@@ -369,11 +388,11 @@ exports.handlers = {
                                 + '", function(err, renderedItems) {');
 
                     // surrounding edit for list
-                    me.startEdit('pageId', instructions.raw);
+                    me.startEdit('list', 'pageId', instructions.raw);
                     me.appendRaw(cachedList.buffers.start + 'for(var x = 0, listItem; listItem = renderedItems[x++];) {');
 
                     // surrounding edit for list item
-                    me.startEdit('"' + instructions.field + ':" + (listItem.id) + ":" + (x - 1)');
+                    me.startEdit('listItem', '"' + instructions.field + ':" + (listItem.id) + ":" + (x - 1)');
 
                     // list item opening (split on {% child %} )
                     me.appendRaw(pieces[0]);
@@ -439,7 +458,7 @@ exports.handlers = {
                 var instructions = templater.getInstructions(raw);
 
                 if(!instructions.noEdit) {
-                    this.startEdit('data[pageId].child', instructions.attr);
+                    this.startEdit('plip', 'data[pageId].child', instructions.attr);
                 }
                 this.append(templater.whatDoesItMean(this.state, instructions.field));
 
@@ -455,7 +474,7 @@ exports.handlers = {
                 var instructions = templater.getInstructions(raw);
 
                 if(!instructions.noEdit) {
-                    this.startEdit('data[pageId].parent', instructions.attr);
+                    this.startEdit('plip', 'data[pageId].parent', instructions.attr);
                 }
                 this.append(templater.whatDoesItMean(this.state, instructions.field));
 
@@ -479,7 +498,7 @@ exports.handlers = {
                 var instructions = templater.getInstructions(raw);
 
                 if(!instructions.noEdit) {
-                    this.startEdit('pageId', instructions.field);
+                    this.startEdit('plip', 'pageId', raw);
                 }
                 this.append('(data[pageId].locals["'+instructions.field+'"] || data[pageId].variables["'+instructions.field+'"] || "")');
 
@@ -588,10 +607,10 @@ exports.parser = function(options) {
         }
     };
 
-    this.startEdit = function(id, attr) {
+    this.startEdit = function(prefix, id, attr) {
         if(this.role.wrapTemplateFields) {
             this.appendRaw(this.identifier
-                + ' += "<q id=\\"" + ' + id + (attr ? ' + "@' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";');
+                + ' += "<q id=\\"' + prefix + ':" + ' + id + (attr ? ' + "@' + attr + '"' : '') + ' + "\\" class=\\"rayframe-edit\\">";');
 
             this.endEdits.push('</q>');
         }
@@ -733,69 +752,66 @@ exports.processTemplateString = function(template, options, cb) {
     });
 };
 
+exports.addNamespace = function(namespace) {
+    templater.transientFunctions += 'RayFrame["' + namespace + '"] = {};';
+};
+
+exports.addTransientFunction = function(name, reference) {
+    templater.addNamespacedTransientFunction(null, name, reference);
+};
+
 // toString all the functions that we want to access on the front end
-exports.addTransientFunction = function() {
-    var args = Array.prototype.slice.call(arguments), l = args.length, ref;
-    while(l--) {
-        try {
-            // Either this is a string referencing a funciton like "utils.splort"
-            if(typeof args[l] == 'string') {
-                // Eval is evil! Is there a better way?
-                ref = eval(args[l]);
-            // or this is a ['functionname', function() {..actual function reference...}] array. We need both to output it to front end
-            } else {
-                ref = args[l][1];
-                args[l] = 'a.'+args[l][0];
-            }
-        } catch(e) {
-            log.error('Fatal error: Nonexistant reference `'+args[l].toString()+'` was added to transient variables. It will not be available on the front end.');
-            continue;
-        }
-        // TODO: Transient functions should probably require role permissions, like admin gets this, public gets this. addPublicTransientFuncitons would be good,
-        // because who cares what methods the logged in content editor gets, they can't use them without back end authentication
-        templater.transientFunctions += 'RayFrame.Transients["'+
-            // Put all funcitons on the RayFrame.Transients objects. Replace 'module.fnName' to just 'fnName'. Collisions are possible, like utils.stuff()
-            // will overwrite otherModule.stuff(), but I'm not worried right now
-            args[l].replace(/.*\./, '')+'"] = '+
-            // Ok, so there are a few problems with moving back end code to front end code, namely dependencies with require. Right now I'm just saying
-            // you can only use functions in lib/utils.js in your transient functions. I don't want to have to resolving that bullshit.
-            ref.toString().replace(/(\W)utils\./g, '$1RayFrame.Transients.')+';';
-    }
+exports.addNamespacedTransientFunction = function(namespace, name, reference) {
+    // TODO: Transient functions should probably require role permissions, like admin gets this, public gets this. addPublicTransientFuncitons would be good,
+    // because who cares what methods the logged in content editor gets, they can't use them without back end authentication
+    templater.transientFunctions += 'RayFrame'
+        + (namespace ? '["' + namespace + '"]' : '')
+        // Put all funcitons on the RayFrame.Transients objects. Replace 'module.fnName' to just 'fnName'. Collisions are possible, like utils.stuff()
+        // will overwrite otherModule.stuff(), but I'm not worried right now
+        + '["' + name + '"] = '
+        // Ok, so there are a few problems with moving back end code to front end code, namely dependencies with require. Right now I'm just saying
+        // you can only use functions in lib/utils.js in your transient functions. I don't want to have to resolving that bullshit.
+        + reference.toLocaleString().replace(/(\W)utils\./g, '$1RayFrame.') + ';';
 };
 
 // Parse a "plip" which is anything in {{ }} on a template
 exports.getInstructions = function(plip) {
-    var raw, doc_id;
-    if(plip.substring(0,2) == '{{') {
-        // This plip came from a template file
-        plip = plip.substring(2, plip.length-2);
+    var conclusion = {
+        raw: plip
+    };
+
+    if(!plip.indexOf('list:')) {
+    } else if(!plip.indexOf('listItem:')) {
     } else {
-        //// This plip came from the front end, and it will be docid:plip without the {{ }}
-        //raw = plip;
 
-        //doc_id = plip.substring(0, plip.indexOf(':'));
-        //// Parse out the plip minus the doc_id for getting instructions
-        //plip = plip.replace(doc_id+':', '');
-    }
-    var fields = plip.split(':'),
-        l = fields.length,
-        split = fields[0].split('.'),
-        conclusion = {
-            field: fields[0],
-            raw: raw || plip,
-            noEdit: fields.indexOf('noEdit') > -1 ? true : false,
-            list: fields[1] == 'list' ? true : false,
-            doc_id: doc_id
-        };
+        // Example: "plip:global.html@info". the actual plip is just "info"
+        if(!plip.indexOf('plip:')) {
+            var parts = plip.match(/:(.+?)@(.+?)$/);
 
-    // Say if this has an attribute like {{child.attr}}
-    conclusion.attr = split[1] || null;
+            conclusion.doc_id = parts[1];
+            conclusion.isPlip = true;
 
-    // If this isn't an include it could have things like `view=a.html` or `type=blog`
-    while(l--) {
-        var s = fields[l].split('=');
-        if(s.length > 1) {
-            conclusion[s[0]] = s[1];
+            plip = parts[2];
+
+            if(plip.indexOf('widget=') == -1) {
+                conclusion.widget = 'default';
+            }
+        }
+
+        var fields = plip.split(':'),
+            dotSplit = fields[0].split('.');
+
+        // The key of the document
+        conclusion.field = fields[0];
+
+        // Say if this has an attribute like {{child.attr}}
+        conclusion.attr = dotSplit[1] || null;
+
+        // If this isn't an include it could have things like `view=a.html` or `type=blog`
+        var index = fields.length;
+        while(index--) {
+            var split = fields[index].split('=');
+            conclusion[split[0]] = split.length > 1 ? split[1] : true;
         }
     }
 
