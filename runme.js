@@ -8,5 +8,5 @@ server.createServer({
     server_port: 8080,
     secret: 'hackme',
     hard_reset: true,
-    //debug: true
+    debug: true
 });

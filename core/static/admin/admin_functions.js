@@ -18,8 +18,12 @@
         };
 
         this.post = function(url, data, cb) {
-            var send = {current_id: current_id, current_url_id: current_url_id};
-            url = access_urls.admin + '/' + url; // Assuming admin here
+            var send = {
+                current_id: RayFrame.current_id,
+                current_url_id: RayFrame.current_url_id
+            };
+
+            url = RayFrame.accessUrls[RayFrame.role] + '/' + url;
 
             if(cb) {
                 // If we got a data object we will have cb
@@ -72,12 +76,13 @@
 
                 $input.click(function() {
                     me.result = $input.val();
+
                     $container.html(me.result);
                     me.destroy();
 
                     var completeEvent = {
                         originalEvent: editEvent,
-                        result: me.result,
+                        value: me.result,
                         instructions: editEvent.instructions,
                         type: 'edit.complete'
                     };
@@ -123,9 +128,13 @@
 
         // The widget has done its due dilligence. Let's tell the server what's up
         function completeEdit(completeEvent) {
+
             if(completeEvent.instructions.isPlip) {
-                console.log('complete:', completeEvent);
-                RayFrame.post();
+                RayFrame.post('update', {
+                    value: completeEvent.value,
+                    instructions: completeEvent.instructions
+                }, function() {
+                });
             }
         }
 

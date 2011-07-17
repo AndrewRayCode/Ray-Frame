@@ -227,7 +227,7 @@ exports.createPost = function(express, role, prefix, name, functionCall) {
 exports.setUpAccess = function(express) {
     permissions.forEach(function(role) {
         for(var functionName in role.accessors) {
-            server.createPost(express, role.name, role.accessURLPrefix || '', functionName, role.accessors[functionName]);
+            server.createPost(express, role.name, role.accessURL || role.name, functionName, role.accessors[functionName]);
         }
     });
 

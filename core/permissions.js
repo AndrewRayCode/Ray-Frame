@@ -147,10 +147,12 @@ module.exports = [{
             });
         },
         update: function(req, res, pageData, urlData, couch) {
-            var parts = req.body.field.split(':');
+            var instructions = req.body.instructions;
 
-            couch.getDoc(parts[0], function(err, doc) {
-                doc[parts[1]] = req.body.value;
+            couch.getDoc(instructions.doc_id, function(err, doc) {
+
+                doc[instructions.field] = req.body.value;
+
                 utils.saveDoc(couch, doc._id, doc, function(err, dbres) {
                     if(err) {
                         return res.send({status:'failure', message:err});

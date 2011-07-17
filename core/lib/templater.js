@@ -154,7 +154,8 @@ exports.handlers = {
                     output.splice(-2, 0,
                         (this.role.includes
                         + '<script>'
-                            + 'RayFrame.current_id="$$1"; RayFrame.current_url_id="$$2"; RayFrame.access_urls="$$3";'
+                            + 'RayFrame.current_id="$$1"; RayFrame.current_url_id="$$2";'
+                            + 'RayFrame.accessUrls=$$3; RayFrame.role = "$$4";'
                             + transients
                         + '</script>')
                         
@@ -165,7 +166,7 @@ exports.handlers = {
 
                     while(permissionIndex--) {
                         var permission = templater.permissions[permissionIndex];
-                        urls[permission.name] = permission.accessUrl || permission.name;
+                        urls[permission.name] = permission.accessURL || permission.name;
 
                         if(this.role.name == permission.name) {
                             break;
@@ -179,6 +180,7 @@ exports.handlers = {
                             .replace('$$1', '" + entryId + "')
                             .replace('$$2', '" + data[entryId].variables.url + "')
                             .replace('$$3', sys.inspect(urls))
+                            .replace('$$4', this.role.name)
                         );
                 } else {
                     this.append('"' + escapeChars(output) + '"');
@@ -792,6 +794,7 @@ exports.getInstructions = function(plip) {
             conclusion.isPlip = true;
 
             plip = parts[2];
+            conclusion.plip = plip;
 
             if(plip.indexOf('widget=') == -1) {
                 conclusion.widget = 'default';
