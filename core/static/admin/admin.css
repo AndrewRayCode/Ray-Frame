@@ -8,6 +8,6 @@
 .list_views {background:blue; color:white; border:1px solid white; padding:10px;}
 .list_views div {cursor:pointer; border-bottom:1px dotted green;}
 
-q.rayframe-edit {margin:0; padding:0;}
+q.rayframe-edit {margin:0; padding:0; outline:none;}
 q.rayframe-edit:before {display:none;}
 q.rayframe-edit:after {display:none;}

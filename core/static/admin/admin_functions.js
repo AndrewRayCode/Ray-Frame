@@ -66,27 +66,31 @@
             this.edit = function(editEvent) {
 
                 var $container = editEvent.$container,
-                    html = $container.html(),
-                    $input = RayFrame.$('<input type="text" />').val(html).focus();
+                    html = $container.html();
+                    //$input = RayFrame.$('<input type="text" />').val(html).focus();
+                this.$container = $container;
 
-                this.$input = $input;
+                $container.attr('contentEditable', true).focus();
 
-                $container.empty().append($input);
-                $input.focus();
+                //this.$input = $input;
 
-                $input.click(function() {
-                    me.result = $input.val();
+                //$container.empty().append($input);
+                //$input.focus();
 
-                    $container.html(me.result);
-                    me.destroy();
+                $container.bind('keypress.rayframe', function(keyEvent) {
+                    if(keyEvent.keyCode == 13) {
+                        me.result = $container.html();
 
-                    var completeEvent = {
-                        originalEvent: editEvent,
-                        value: me.result,
-                        instructions: editEvent.instructions,
-                        type: 'edit.complete'
-                    };
-                    RayFrame.trigger(completeEvent);
+                        me.destroy();
+
+                        var completeEvent = {
+                            originalEvent: editEvent,
+                            value: me.result,
+                            instructions: editEvent.instructions,
+                            type: 'edit.complete'
+                        };
+                        RayFrame.trigger(completeEvent);
+                    }
                 });
             };
 
@@ -95,7 +99,8 @@
             };
 
             this.destroy = function() {
-                this.$input.destroy && this.$input.destroy();
+                this.$container.attr('contentEditable', null).unbind('keypress.rayframe').blur();
+                //this.$input.destroy && this.$input.destroy();
             };
         }
     };
