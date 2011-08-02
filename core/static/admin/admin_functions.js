@@ -67,24 +67,21 @@
 
                 var $container = editEvent.$container,
                     html = $container.html();
-                    //$input = RayFrame.$('<input type="text" />').val(html).focus();
                 this.$container = $container;
 
                 $container.attr('contentEditable', true).focus();
 
-                //this.$input = $input;
-
-                //$container.empty().append($input);
-                //$input.focus();
 
                 $container.bind('keypress.rayframe', function(keyEvent) {
                     if(keyEvent.keyCode == 13) {
+                        // Clean up the DOM
+                        keyEvent.preventDefault();
                         me.result = $container.html();
 
                         me.destroy();
 
                         var completeEvent = {
-                            originalEvent: editEvent,
+                            originalEvent: editEvent, // pass it if we have it?
                             value: me.result,
                             instructions: editEvent.instructions,
                             type: 'edit.complete'
@@ -116,11 +113,15 @@
             var $target = $(clickEvent.target);
 
             if($target.hasClass('rayframe-edit')) {
+                clickEvent.preventDefault();
                 editElement($target, clickEvent);
             }
         }
 
         function editElement($element, initEvent) {
+            if($element.attr('contentEditable') == true) {
+                return;
+            }
             var instructions = RayFrame.getInstructions($element.attr('id'));
 
             initEvent = initEvent || {};
