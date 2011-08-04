@@ -57,7 +57,7 @@
         };
     })();
 
-    window.RayFrame = RayFrame;
+    this.RayFrame = RayFrame;
 
     RayFrame.WidgetCatalog = {
         'default': function() {
@@ -97,9 +97,29 @@
 
             this.destroy = function() {
                 this.$container.attr('contentEditable', null).unbind('keypress.rayframe').blur();
-                //this.$input.destroy && this.$input.destroy();
             };
         }
+    };
+
+    RayFrame.ListManager = function($element, options) {
+        for(var optionName in options) {
+            this[optionName] = options[optionName];
+        }
+
+        var instructions = this.instructions || RayFrame.getInstructions($element.attr('id')),
+            me = this;
+
+        if(instructions.addable !== false) {
+            $element.delegate('a.rayframe-action', 'click', function(evt) {
+                me.insertNewItem();
+            });
+        }
+
+        $element.prepend(RayFrame.$('<a class="rayframe-add-item rayframe-action rayframe-button rayframe-small-button">+</a>'));
+        this.instructions = instructions;
+    };
+
+    RayFrame.ListManager.prototype.insertNewItem = function() {
     };
 
     RayFrame.init().$(function(){
@@ -107,12 +127,23 @@
 
         $(document.body).click(bodyClickHandler);
 
+        var instructions,
+            $editable;
+        $('.rayframe-edit').each(function(index, item) {
+            $editable = $(item);
+            instructions = RayFrame.getInstructions(item.id);
+
+            if(instructions.widget == 'list') {
+                new RayFrame.ListManager($editable);
+            }
+        });
+
         RayFrame.bind('edit.complete', completeEdit);
 
         function bodyClickHandler(clickEvent) {
             var $target = $(clickEvent.target);
 
-            if($target.hasClass('rayframe-edit')) {
+            if($target.hasClass('rayframe-edit') && !RayFrame.disableEditing) {
                 clickEvent.preventDefault();
                 editElement($target, clickEvent);
             }
@@ -134,12 +165,14 @@
 
         // The widget has done its due dilligence. Let's tell the server what's up
         function completeEdit(completeEvent) {
-
             if(completeEvent.instructions.isPlip) {
+
+                RayFrame.disableEditing = true;
                 RayFrame.post('update', {
                     value: completeEvent.value,
                     instructions: completeEvent.instructions
                 }, function() {
+                    RayFrame.disableEditing = false;
                 });
             }
         }

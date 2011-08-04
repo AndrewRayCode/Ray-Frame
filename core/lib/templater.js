@@ -782,10 +782,16 @@ exports.getInstructions = function(plip) {
         raw: plip
     };
 
-    if(!plip.indexOf('list:')) {
-    } else if(!plip.indexOf('listItem:')) {
-    } else {
+    if(!plip.indexOf('listItem:')) {
 
+        // listItem:field_on_parent:child_id:index
+        var fields = plip.split(':');
+
+        conclusion.listItem = true;
+        conclusion.parentField = fields[1];
+        conclusion.itemId = fields[2];
+        conclusion.listIndex = fields[3];
+    } else {
         // Example: "plip:global.html@info". the actual plip is just "info"
         if(!plip.indexOf('plip:')) {
             var parts = plip.match(/:(.+?)@(.+?)$/);
@@ -799,6 +805,12 @@ exports.getInstructions = function(plip) {
             if(plip.indexOf('widget=') == -1) {
                 conclusion.widget = 'default';
             }
+        } else if(!plip.indexOf('list:')) {
+            conclusion.widget = 'list';
+            var parts = plip.match(/:(.+?)@(.+?)$/);
+
+            conclusion.doc_id = parts[1];
+            conclusion.field = parts[2];
         }
 
         var fields = plip.split(':'),
