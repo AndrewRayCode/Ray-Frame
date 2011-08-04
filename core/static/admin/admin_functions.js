@@ -101,25 +101,47 @@
         }
     };
 
-    RayFrame.ListManager = function($element, options) {
+    RayFrame.ListManager = function($wrapper, options) {
         for(var optionName in options) {
             this[optionName] = options[optionName];
         }
 
-        var instructions = this.instructions || RayFrame.getInstructions($element.attr('id')),
-            me = this;
+        var instructions = this.instructions || RayFrame.getInstructions($wrapper.attr('id')),
+            me = this,
+            insertDelegate = function(evt) {
+                if(me.inserting) {
+                    return;
+                }
+                me.insertNewItem();
+            };
+
+        this.$list = $wrapper.find('q[id^="listItem"]:first').parent();
 
         if(instructions.addable !== false) {
-            $element.delegate('a.rayframe-action', 'click', function(evt) {
-                me.insertNewItem();
-            });
+            $wrapper
+                .delegate('a.rayframe-action', 'click', insertDelegate)
+                .bind('dblclick', insertDelegate);
         }
 
-        $element.prepend(RayFrame.$('<a class="rayframe-add-item rayframe-action rayframe-button rayframe-small-button">+</a>'));
+        this.insertButton = RayFrame.$('<a class="rayframe-add-item rayframe-action rayframe-button rayframe-small-button">+</a>').prependTo($wrapper);
         this.instructions = instructions;
+        this.$wrapper = $wrapper;
     };
 
     RayFrame.ListManager.prototype.insertNewItem = function() {
+        this.inserting = true;
+        this.insertButton.fadeOut(200);
+
+        var me = this;
+
+        RayFrame.post('addListItem', {
+            instructions: this.instructions
+        }, function(data) {
+            console.log(data.result);
+
+            RayFrame.$(data.result).appendTo(me.$list);
+            console.log('done');
+        });
     };
 
     RayFrame.init().$(function(){

@@ -350,7 +350,7 @@ exports.handlers = {
             matcher: /:list/,
             handler: function(raw, cb) {
                 var instructions = templater.getInstructions(raw),
-                    listTemplate = (instructions.listBody || 'list') + '.html',
+                    listTemplate = instructions.listBody,
                     cachedListCheck = templater.rawCache[listTemplate + this.role.name],
                     me = this;
 
@@ -386,7 +386,7 @@ exports.handlers = {
 
                     // nasty looking stuff. builds code that outputs list items
                     me.appendRaw('renderList(data[pageId].variables["' + instructions.field + '"], "'
-                                + (instructions.view || 'link.html') + me.role.name
+                                + (instructions.view) + me.role.name
                                 + '", function(err, renderedItems) {');
 
                     // surrounding edit for list
@@ -789,7 +789,7 @@ exports.getInstructions = function(plip) {
 
         conclusion.listItem = true;
         conclusion.parentField = fields[1];
-        conclusion.itemId = fields[2];
+        conclusion.doc_id = fields[2];
         conclusion.listIndex = fields[3];
     } else {
         // Example: "plip:global.html@info". the actual plip is just "info"
@@ -809,8 +809,8 @@ exports.getInstructions = function(plip) {
             conclusion.widget = 'list';
             var parts = plip.match(/:(.+?)@(.+?)$/);
 
+            plip = parts[2];
             conclusion.doc_id = parts[1];
-            conclusion.field = parts[2];
         }
 
         var fields = plip.split(':'),
@@ -827,6 +827,15 @@ exports.getInstructions = function(plip) {
         while(index--) {
             var split = fields[index].split('=');
             conclusion[split[0]] = split.length > 1 ? split[1] : true;
+        }
+
+        if(conclusion.list) {
+            if(!conclusion.view) {
+                conclusion.view = 'link.html';
+            }
+            if(!conclusion.listBody) {
+                conclusion.listBody = 'list.html';
+            }
         }
     }
 

@@ -2,6 +2,7 @@ var sys    = require('sys'),
     log = require('simple-logger'),
     fs = require('fs'),
     templater = require('./lib/templater'),
+    cache = require('./lib/cache'),
     utils = require('./lib/utils');
 
 // These functions, currently wired up to post methods in sever.js, are access / update functions accessible from the website URL. The syntax is such:
@@ -32,30 +33,57 @@ module.exports = [{
         // This is when the user clicks add on a list. We will save an object in the database that just has the new item's
         // template on it. We won't create a URL object for it because it doesn't yet have a title.
         addListItem: function(req, res, pageData, urlData, couch) {
-            var instructions = templater.getInstructions(req.body.plip);
+            var instructions = req.body.instructions,
+                doc_id = instructions.doc_id,
+                user = req.session.user,
+                doc = {
+                    template: req.body.view,
+                    parent_id: doc_id
+                };
 
             // Save a temporary document in couch, let it create the key
-            utils.saveDoc(couch, {template: req.body.view, parent_id: instructions.doc_id}, function(err, saved) {
+            utils.saveDoc(couch, doc, function(err, saved) {
                 if(err) {
                     res.send({status:'failure', message:err});
                     return;
                 }
                 // Get the document the list is on for context
-                couch.getDoc(instructions.doc_id, function(err, doc) {
+                couch.getDoc(doc_id, function(err, doc) {
                     if(err) {
                         log.error('Error getting main doc from couch: ',err);
                         res.send({status:'failure', message:err});
                         return;
                     }
-                    templater.getListItems(instructions, doc, saved, function(err, items) {
-                        templater.renderList(items, instructions, urlData, doc, function(err, rendered) {
-                            if(err) {
-                                log.error('Error rendering list: ',err);
-                                res.send({status:'failure', message:err});
-                                return;
-                            }
-                            res.send({status:'success', result:rendered, new_id: saved.id});
-                        });
+
+                    var viewName = instructions.view + user.role,
+                        fakeData = {},
+                        childId = saved.id,
+                        view = templater.templateCache[viewName];
+
+                    fakeData[childId] = {
+                        variables: {title: 'title'},
+                        locals: {}
+                    }
+
+                    // TODO: Please abstract this because we basically duplicate it in templater
+                    var listTemplateView = instructions.listBody + user.role,
+                        cachedList = templater.rawCache[listTemplateView],
+                        pieces = cachedList.buffers.element.split('this.replacechild;');
+
+                    if(!view) {
+                        var msg = 'View not found! `' + view + '`';
+                        log.error(msg);
+                        return res.send({status:'failure', message:msg});
+                    }
+
+                    // function('cache', 'templater', 'user', 'pageId', 'data', 'cb');
+                    view(cache, templater, user, childId, fakeData, function(err, parsed) {
+                        if(err) {
+                            log.error('Error rendering list: ',err);
+                            return res.send({status:'failure', message:err});
+                        }
+                        var complete = pieces[0] + parsed + pieces[1];
+                        res.send({status: 'success', result: complete, new_id: childId});
                     });
                 });
             });

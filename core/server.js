@@ -263,6 +263,6 @@ exports.serveTemplate = function(user, pageData, cb) {
     //log.error('serving ',pageData.template + user.role);
     //console.log(templater.templateCache[pageData.template + user.role].toLocaleString());
 
-    // function('cache', 'templater', 'user', 'pageId', 'data', 'locals', 'cb');
+    // function('cache', 'templater', 'user', 'pageId', 'data', 'cb');
     templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, cb);
 };
