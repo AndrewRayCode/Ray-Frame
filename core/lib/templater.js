@@ -11,10 +11,6 @@ var templater = module.exports,
     parser = require('./parser'),
     themes_dir = '../../user/themes/';
 
-// Regex to find {{ stuff }}
-exports.modelReplaces = /\{\{\S+?\}\}/g;
-exports.controlStatements = /\{% \S+? %\}/g;
-
 // Function code available on front end and back end
 exports.transientFunctions = '';
 
