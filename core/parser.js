@@ -442,8 +442,10 @@ function make_parser() {
         } else if(state == 'template') {
             if(a == 'controller') {
                 state = 'control';
+                o = symbol_table[v];
+            } else {
+                o = symbol_table[a];
             }
-            o = symbol_table[v];
         }
         token = Object.create(o);
         token.from  = t.from;
@@ -601,7 +603,6 @@ function make_parser() {
     symbol(',');
     symbol('else');
 
-    // mine...
     symbol('%}');
     symbol('}}');
 
@@ -799,6 +800,10 @@ function make_parser() {
         return a;
     });
 
+    stmt('template', function() {
+        return this;
+    });
+
     stmt('var', function() {
         var a = [], n, t;
         while (true) {
@@ -887,8 +892,7 @@ function make_parser() {
 var parse = make_parser();
 
 try {
-    console.log(parse('{% var cheese; if(cheese === 2) {var a = 3;} %}'));
-    //console.log(parse('<div>{% if(cheese == 3) {} %} {{ plumb:poop=cheese:barf }}</div>'));
+    console.log(parse('<li>{% var cheese; if(cheese === 2) {var a = 3;} %}cocks'));
 } catch (e) {
     if(e.hasOwnProperty('name')) {
         log.error('Fatal error: ',e);
