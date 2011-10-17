@@ -1,5 +1,11 @@
 // http://javascript.crockford.com/tdop/index.html
-function make_parser() {
+function error(token, message) {
+    token.name = 'SyntaxError';
+    token.message = message;
+    throw token;
+}
+
+function makeParser() {
     var scope,
         symbol_table = {},
         token,
@@ -15,7 +21,7 @@ function make_parser() {
         define: function(n) {
             var t = this.def[n.value];
             if(typeof t === 'object') {
-                n.error(t.reserved ? 'Already reserved.' : 'Already defined.');
+                error(n, t.reserved ? 'Already reserved.' : 'Already defined.');
             }
             this.def[n.value] = n;
             n.reserved = false;
@@ -53,7 +59,7 @@ function make_parser() {
                     return;
                 }
                 if(t.arity === 'name') {
-                    n.error('Already defined.');
+                    error(n, 'Already defined.');
                 }
             }
             this.def[n.value] = n;
@@ -72,7 +78,9 @@ function make_parser() {
     var advance = function(id) {
         var a, o, t, v;
         if(id && token.id !== id) {
-            token.error('Expected \'' + id + '\'.');
+            if(id == ';' && token.id != '%}') {
+                error(token, 'Expected \'' + id + '\'.');
+            }
         }
         if(token_nr >= tokens.length) {
             token = symbol_table['(end)'];
@@ -88,7 +96,7 @@ function make_parser() {
             } else if(a === 'operator') {
                 o = symbol_table[v];
                 if(!o) {
-                    t.error('Unknown operator.');
+                    error(t, 'Unknown operator.');
                 }
             } else if(a === 'string' || a ===  'number') {
                 o = symbol_table['(literal)'];
@@ -97,7 +105,7 @@ function make_parser() {
                 o = symbol_table[v];
                 state = 'template';
             } else {
-                t.error('Unexpected token.');
+                error(t, 'Unexpected token.');
             }
         } else if(state == 'plip') {
             if(a == 'plip') {
@@ -147,7 +155,7 @@ function make_parser() {
         }
         v = expression(0);
         if(!v.assignment && v.id !== '(') {
-            v.error('Bad expression statement.');
+            error(v, 'Bad expression statement.');
         }
         advance(';');
         return v;
@@ -175,10 +183,10 @@ function make_parser() {
 
     var original_symbol = {
         nud: function() {
-            this.error('Undefined symbol: ' + this.value);
+            error(this, 'Undefined symbol: ' + this.value);
         },
         led: function(left) {
-            this.error('Missing operator.');
+            error(this, 'Missing operator.');
         }
     };
 
@@ -235,7 +243,7 @@ function make_parser() {
     var assignment = function(id) {
         return infixr(id, 10, function(left) {
             if(left.id !== '.' && left.id !== '[' && left.arity !== 'name') {
-                left.error('Bad lvalue.');
+                error(left, 'Bad lvalue.');
             }
             this.first = left;
             this.second = expression(9);
@@ -322,7 +330,7 @@ function make_parser() {
     infix('.', 80, function(left) {
         this.first = left;
         if(token.arity !== 'name') {
-            token.error('Expected a property name.');
+            error(token, 'Expected a property name.');
         }
         token.arity = 'literal';
         this.second = token;
@@ -353,7 +361,7 @@ function make_parser() {
             if((left.arity !== 'unary' || left.id !== 'function') &&
                 left.arity !== 'name' && left.id !== '(' &&
                 left.id !== '&&' && left.id !== '||' && left.id !== '?') {
-                left.error('Expected a variable name.');
+                error(left, 'Expected a variable name.');
             }
         }
         if(token.id !== ')') {
@@ -391,7 +399,7 @@ function make_parser() {
         if(token.id !== ')') {
             while(true) {
                 if(token.arity !== 'name') {
-                    token.error('Expected a parameter name.');
+                    error(token, 'Expected a parameter name.');
                 }
                 scope.define(token);
                 a.push(token);
@@ -436,7 +444,7 @@ function make_parser() {
             while(true) {
                 n = token;
                 if(n.arity !== 'name' && n.arity !== 'literal') {
-                    token.error('Bad property name.');
+                    error(token, 'Bad property name.');
                 }
                 advance();
                 advance(':');
@@ -472,7 +480,7 @@ function make_parser() {
     stmt('{{', function() {
         var lastKey;
         if(token.arity != 'name') {
-            token.error('Expected a plip name.');
+            error(token, 'Expected a plip name.');
         }
         this.plipName = token.value;
         this.plipValues = {};
@@ -482,7 +490,7 @@ function make_parser() {
             if(token.value == '=') {
                 advance();
                 if(token.arity != 'name') {
-                    token.error('Expected a plip assignment value');
+                    error(token, 'Expected a plip assignment value');
                 }
                 this.plipValues[lastKey] = token.value;
                 advance();
@@ -506,7 +514,7 @@ function make_parser() {
         while(true) {
             n = token;
             if(n.arity !== 'name') {
-                n.error('Expected a new variable name.');
+                error(n, 'Expected a new variable name.');
             }
             scope.define(n);
             advance();
@@ -549,7 +557,7 @@ function make_parser() {
         }
         advance(';');
         if(token.id !== '}') {
-            token.error('Unreachable statement.');
+            error(token, 'Unreachable statement.');
         }
         this.arity = 'statement';
         return this;
@@ -558,7 +566,7 @@ function make_parser() {
     stmt('break', function() {
         advance(';');
         if(token.id !== '}') {
-            token.error('Unreachable statement.');
+            error(token, 'Unreachable statement.');
         }
         this.arity = 'statement';
         return this;
@@ -574,8 +582,7 @@ function make_parser() {
     });
 
     return function(source) {
-        tokens = tokenize(source);
-        //console.log(tokens);
+        tokens = source;
         token_nr = 0;
         new_scope();
         advance();
@@ -585,3 +592,11 @@ function make_parser() {
         return s;
     };
 }
+
+function parse(tokens) {
+    return makeParser()(tokens);
+}
+
+var parser = module.exports;
+parser.makeParser = makeParser;
+parser.parse = parse;

@@ -1,12 +1,10 @@
 // http://javascript.crockford.com/tdop/index.html
 
-// Transform a token object into an exception object and throw it.
-Object.prototype.error = function(message, t) {
-    t = t || this;
-    t.name = 'SyntaxError';
-    t.message = message;
-    throw t;
-};
+function error(token, message) {
+    token.name = 'SyntaxError';
+    token.message = message;
+    throw token;
+}
 
 function tokenize(input) {
     var c,                          // The current character.
@@ -196,7 +194,7 @@ function tokenize(input) {
                             advance();
                         }
                         if(c < '0' || c > '9') {
-                            make('number').error('Bad exponent');
+                            error(make('number'), 'Bad exponent');
                         }
                         do {
                             buffer += c;
@@ -208,7 +206,7 @@ function tokenize(input) {
                     if(c >= 'a' && c <= 'z') {
                         buffer += c;
                         i += 1;
-                        make('number').error('Bad number');
+                        error(make('number'), 'Bad number');
                     }
 
                     // Convert the string value to a number. If it is finite, then it is a good
@@ -217,7 +215,7 @@ function tokenize(input) {
                     if(isFinite(n)) {
                         tokens.push(make('number', n));
                     } else {
-                        make('number').error('Bad number');
+                        error(make('number'), 'Bad number');
                     }
 
                 // string
@@ -228,9 +226,9 @@ function tokenize(input) {
                     for (;;) {
                         c = input.charAt(i);
                         if(c < ' ') {
-                            make('string').error(c === '\n' || c === '\r' || c === '' ?
+                            error(make('string'), c === '\n' || c === '\r' || c === '' ?
                                     'Unterminated string.' :
-                                    'Control character in string.', make(''));
+                                    'Control character in string.');
                         }
 
                         // Look for the closing quote.
@@ -242,7 +240,7 @@ function tokenize(input) {
                         if(c === '\\') {
                             i += 1;
                             if(i >= length) {
-                                make('string').error('Unterminated string');
+                                error(make('string'), 'Unterminated string');
                             }
                             c = input.charAt(i);
                             switch(c) {
@@ -263,11 +261,11 @@ function tokenize(input) {
                                     break;
                                 case 'u':
                                     if(i >= length) {
-                                        make('string').error('Unterminated string');
+                                        error(make('string'), 'Unterminated string');
                                     }
                                     c = parseInt(input.substr(i + 1, 4), 16);
                                     if(!isFinite(c) || c < 0) {
-                                        make('string').error('Unterminated string');
+                                        error(make('string'), 'Unterminated string');
                                     }
                                     c = String.fromCharCode(c);
                                     i += 4;
@@ -316,3 +314,6 @@ function tokenize(input) {
 
     return tokens;
 }
+
+var lexer = module.exports;
+lexer.tokenize = tokenize;

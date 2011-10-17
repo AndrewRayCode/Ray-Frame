@@ -6,8 +6,9 @@ var templater = module.exports,
     transients = require('../transients'),
     flowControl = require('./flower'),
     utils = require('./utils'),
-    parser = require('uglify-js').parser,
-    uglifier = require('uglify-js').uglify,
+    uglify = require('uglify-js'),
+    lexer = require('./lexer'),
+    parser = require('./parser'),
     themes_dir = '../../user/themes/';
 
 // Regex to find {{ stuff }}
@@ -97,16 +98,9 @@ exports.cacheTemplate = function(filepath, options, cb) {
     });
 };
 
-exports.uglify = function(funcStr) {
-    var ast = parser.parse(funcStr); // parse code and get the initial AST
-    ast = uglifier.ast_mangle(ast); // get a new AST with mangled names
-    ast = uglifier.ast_squeeze(ast); // get an AST with compression optimizations
-    return uglifier.gen_code(ast);
-};
-
 exports.mangleToFunction = function(funcStr) {
     try {
-        funcStr = templater.uglify(funcStr);
+        funcStr = uglify(funcStr);
     } catch(e) {
         throw new Error('Template function string could not be parsed, syntax error found by uglify-js. This is bad.');
     }
@@ -146,7 +140,7 @@ exports.handlers = {
                     var transients = templater.transientFunctions;
                     if(!templater.debug) {
                         try {
-                            transients = templater.uglify(transients)
+                            transients = templater.uglify(transients);
                         } catch(e) {
                             throw new Error('Syntax error parsing transient functions!');
                         }
@@ -412,7 +406,7 @@ exports.handlers = {
 
                     me.parseData.afterTemplate += '});';
                     cb();
-                }
+                };
                 
                 // Create view if needed
                 templater.createViewIfNull(instructions, function(err, viewName) {
@@ -522,7 +516,7 @@ exports.whatDoesItMean = function(stack, str) {
             return 'data[data[pageId].child].variables["'+parts[1]+'"]';
         break;
     }
-}
+};
 
 // Parser (really it's just a scanner, parsers are beyond me currently) that turns a template from the filesystem into an
 // executable javascript function
@@ -712,7 +706,7 @@ exports.processTemplateString = function(template, options, cb) {
     var parseOptions = {
         identifier: 'str',
         role: options.permission
-    }
+    };
     if(options.preState) {
         parseOptions.state = options.preState;
     }
@@ -876,7 +870,7 @@ exports.getTemplateSource = function(name, cb) {
             }
         }
     });
-}
+};
 
 exports.listTemplates = function(options, cb) {
     if(typeof options == 'function') {
