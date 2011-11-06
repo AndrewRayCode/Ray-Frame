@@ -9,7 +9,16 @@ var templater = module.exports,
     uglify = require('uglify-js'),
     lexer = require('./lexer'),
     parser = require('./parser'),
+    compiler = require('./compiler'),
     themes_dir = '../../user/themes/';
+
+log.log_level = 'info';
+
+var a = lexer.tokenize('moo {{ dicks:list:hi=moo }} boo {{ tits }}');
+//log.info((a)[1]);
+log.warn(compiler.compile(parser.parse(a), {
+    role: {name: 'admin'}
+}));
 
 // Function code available on front end and back end
 exports.transientFunctions = '';

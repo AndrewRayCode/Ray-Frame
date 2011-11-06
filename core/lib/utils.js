@@ -206,4 +206,12 @@ exports.isAllowed = function(permissions, currentRole, questionRole) {
 
 exports.listNameToFunctionName = function(listName) {
     return 'func' + listName.replace(/[^a-zA-Z]/g, '');
-}
+};
+
+exports.getViewName = function(instructions) {
+    return 'type=' + (instructions.plipValues.type || 'all') + (instructions.plipValues.sort ? '-' + instructions.plipValues.sort + '-' + instructions.plipName : '');
+};
+
+exports.getListName = function(instructions) {
+    return instructions.listName || 'list.html';
+};

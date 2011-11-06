@@ -1,7 +1,11 @@
-var log = require('simple-logger');
+var log = require('simple-logger'),
+    utils = require('./utils');
 
-function compile(ast) {
-    var buffer = '';
+function compile(ast, context) {
+    var buffer = '',
+        outdent = '',
+        identifier = 'str',
+        viewsToCreate = [];
 
     var visit = function(node) {
         var vistFn,
@@ -11,7 +15,7 @@ function compile(ast) {
             return visitors.nodeList(node);
         }
 
-        visitKey = node.arity == 'literal' || node.arity == 'template' || node.arity == 'name' ? node.arity : node.value;
+        visitKey = node.arity == 'literal' || node.arity == 'template' || node.arity == 'name' || node.arity == 'plip' ? node.arity : node.value;
         
         if((visitFn = visitors[visitKey])) {
             return visitFn(node);
@@ -23,12 +27,35 @@ function compile(ast) {
 
     var visitors = {
         'template': function(node) {
-            return node.value;
+            return addQuotedString(node.value);
         },
+        'plip': function(node) {
+            var output = '';
+            if(Object.keys(node.plipValues).length) {
+                if('list' in node.plipValues) {
+                    //log.warn(node);
+                    viewsToCreate.push(node.plipValues);
+
+                    output += 'templater.templateCache["' + utils.getListName(node) + context.role.name + '"]'
+                        + '(cache, templater, user, "' + node.plipName + '", data, function(err, parsed) {'
+                        + addString('parsed');
+                    outdent += '});';
+
+                    return output;
+                } else {
+
+                }
+            } else {
+                // TODO: Make context data[pageId]
+                return addString('context["' + node.plipName + '"]');
+            }
+        },
+        // A list of statements
         'nodeList': function(list) {
             var i = 0,
                 node,
                 output = '';
+
             for(; node = list[i++];) {
                 output += visit(node);
             }
@@ -45,7 +72,17 @@ function compile(ast) {
         }
     };
 
-    return visit(ast);
+    var empty = function() {};
+
+    var addQuotedString = function(val) {
+        return addString('"' + val + '"');
+    };
+
+    var addString = function(val) {
+        return identifier + '+=' + val + ';';
+    };
+
+    return visit(ast) + outdent;
 }
 
 var compiler = module.exports;
