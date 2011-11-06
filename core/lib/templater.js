@@ -14,9 +14,11 @@ var templater = module.exports,
 
 log.log_level = 'info';
 
-var a = lexer.tokenize('moo {{ dicks:list:hi=moo }} boo {{ tits }}');
+var a = lexer.tokenize('{% for bob in bob.things %}moo{% endfor %}');
 //log.info((a)[1]);
-log.warn(compiler.compile(parser.parse(a), {
+var p = parser.parse(a);
+//log.info(p);
+log.warn(compiler.compile(p, {
     role: {name: 'admin'}
 }));
 

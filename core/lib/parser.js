@@ -1,3 +1,5 @@
+var log = require('simple-logger');
+
 // http://javascript.crockford.com/tdop/index.html
 function error(token, message) {
     token.name = 'SyntaxError';
@@ -134,8 +136,8 @@ function makeParser() {
     };
 
     var expression = function(rbp) {
-        var left;
-        var t = token;
+        var left,
+            t = token;
         advance();
         left = t.nud();
         while(rbp < token.lbp) {
@@ -154,22 +156,31 @@ function makeParser() {
             return n.std();
         }
         v = expression(0);
-        if(!v.assignment && v.id !== '(') {
-            error(v, 'Bad expression statement.');
-        }
+
+        // We don't care if the next statement is an assignment...
+        //if(!v.assignment && v.id !== '(') {
+            //error(v, 'Bad expression statement.');
+        //}
         advance(';');
         return v;
     };
 
-    var statements = function() {
-        var a = [], s;
+    var statements = function(endtokens) {
+        var a = [],
+            newStatement,
+            endables = endtokens instanceof Array ? endtokens : [endtokens];
+
         while(true) {
             if(token.id === '}' || token.id === '(end)' || token.id == '%}') {
                 break;
             }
-            s = statement();
-            if(s) {
-                a.push(s);
+            newStatement = statement();
+            if(newStatement) {
+                // Did we reach an end condition for this statement?
+                if((endables.indexOf(newStatement.id) > -1)) {
+                    break;
+                }
+                a.push(newStatement);
             }
         }
         return a.length === 0 ? null : a.length === 1 ? a[0] : a;
@@ -183,7 +194,8 @@ function makeParser() {
 
     var original_symbol = {
         nud: function() {
-            error(this, 'Undefined symbol: ' + this.value);
+            // We don't know scope variables, so don't error
+            return this;
         },
         led: function(left) {
             error(this, 'Missing operator.');
@@ -266,7 +278,13 @@ function makeParser() {
 
     var stmt = function(s, f) {
         var x = symbol(s);
-        x.std = f;
+        x.std = f || function() {
+            //log.warn('We have found the endfor keyword and are returning it as a statement');
+            this.arity = 'statement';
+            this.id = s;
+            advance();
+            return this;
+        };
         return x;
     };
 
@@ -282,6 +300,10 @@ function makeParser() {
 
     symbol('%}');
     symbol('}}');
+    stmt('endfor');
+    stmt('endblock');
+    stmt('endwhile');
+    stmt('endif');
 
     constant('true', true);
     constant('false', false);
@@ -463,17 +485,17 @@ function makeParser() {
         return this;
     });
 
-    stmt('{', function () {
+    /*stmt('{', function () {
         new_scope();
         var a = statements();
         advance('}');
         scope.pop();
         return a;
-    }); 
+    });*/
 
     stmt('{%', function() {
-        var a = statements();
-        advance('%}');
+        var a = statements('%}');
+        //log.error('We have made a {% %} statement of',a.id,' with value ',a.value);
         return a;
     });
 
@@ -506,6 +528,13 @@ function makeParser() {
     });
 
     stmt('template', function() {
+        return this;
+    });
+
+    stmt('include', function() {
+        this.first = expression(0);
+        this.arity = 'statement';
+        advance('%}');
         return this;
     });
 
@@ -570,6 +599,25 @@ function makeParser() {
         }
         this.arity = 'statement';
         return this;
+    });
+
+    stmt('for', function() {
+        this.first = expression(0);
+        advance('in');
+        this.second = expression(0);
+        advance('%}');
+
+        //log.warn('In for...Advancing to endfor and capturing the contents...');
+        this.third = statements('endfor');
+        //log.warn('We have advanced');
+
+        this.arity = 'statement';
+        //advance('endfor');
+        return this;
+    });
+
+    stmt('block', function() {
+        advance('endblock');
     });
 
     stmt('while', function() {
