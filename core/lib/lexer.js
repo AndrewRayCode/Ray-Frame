@@ -1,4 +1,5 @@
 // http://javascript.crockford.com/tdop/index.html
+var log = require('simple-logger');
 
 function error(token, message) {
     token.name = 'SyntaxError';
@@ -105,43 +106,20 @@ function tokenize(input) {
             }
         }
 
-        if(state == 'plip') {
-            buffer = '';
-            for(;;) {
-                if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_') {
-                    buffer += c;
-                } else if(c == ':' || c == '=' || (c == '}' && peek == '}')) {
-                    if(buffer.trim() === '') {
-                        throw new Error('Invaid plip piece assignment. (It\'s empty, jerk)');
-                    }
-                    tokens.push(make('name'));
-                    if(c == '}') {
-                        tokens.push(make('plip', '}}'));
-                        state = 'template';
-                        advance(2);
-                        break;
-                    } else {
-                        tokens.push(make('operator', c));
-                    }
-                }
-                advance();
-
-                if(i >= length) {
-                    throw new Error('Unterimnated ' + state + ' statement found, expected \'' + stateClosers[state] + '\' before end of file.');
-                }
-            }
-        }
-
-        if(state == 'control') {
+        if(state == 'control' || state == 'plip') {
             if(c == '%' && peek == '}') {
                 tokens.push(make('controller', '%}'));
                 state = 'template';
                 advance(2);
+            } else if(c == '}' && peek == '}') {
+                tokens.push(make('plip', '}}'));
+                state = 'template';
+                advance(2);
             } else {
-                // Ignore whitespace.
+                // Ignore whitespace
                 if(c <= ' ') {
                     advance();
-                // name.
+                // name
                 } else if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
                     buffer = c;
                     i += 1;

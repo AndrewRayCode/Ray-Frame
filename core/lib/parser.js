@@ -80,8 +80,8 @@ function makeParser() {
     var advance = function(id) {
         var a, o, t, v;
         if(id && token.id !== id) {
-            if(id == ';' && token.id != '%}') {
-                error(token, 'Expected \'' + id + '\'.');
+            if(id == ';' && ((state == 'control' && token.id != '%}') || (state == 'plip' && token.id != '}}'))) {
+                error(token, 'Expected \'' + id + '\', but instead got `' + token.value + '`');
             }
         }
         if(token_nr >= tokens.length) {
@@ -92,7 +92,7 @@ function makeParser() {
         token_nr += 1;
         v = t.value;
         a = t.type;
-        if(state == 'control') {
+        if(state == 'control' || state == 'plip') {
             if(a === 'name') {
                 o = scope.find(v);
             } else if(a === 'operator') {
@@ -103,18 +103,11 @@ function makeParser() {
             } else if(a === 'string' || a ===  'number') {
                 o = symbol_table['(literal)'];
                 a = 'literal';
-            } else if(a == 'controller') {
+            } else if(a == 'controller' || a == 'plip') {
                 o = symbol_table[v];
                 state = 'template';
             } else {
-                error(t, 'Unexpected token.');
-            }
-        } else if(state == 'plip') {
-            if(a == 'plip') {
-                o = symbol_table[v];
-                state = 'template';
-            } else {
-                o = symbol_table['(literal)'];
+                error(t, 'Unexpected token: `' + t.value + '`');
             }
         } else if(state == 'template') {
             if(a == 'controller') {
@@ -136,14 +129,53 @@ function makeParser() {
     };
 
     var expression = function(rbp) {
-        var left,
-            t = token;
+        var left, plipPiece, expressionToken,
+            testToken = token;
+
         advance();
-        left = t.nud();
+
+        // Look for plips, which can be things like a:b=c:d which isn't easy to describe with
+        // the current syntax methods, so manually read the full plip
+        if(state == 'plip' && testToken.arity == 'name' && token.value == ':') {
+            plip = Object.create(symbol_table['(literal)']);
+            plip.plipName = testToken.value;
+            plip.plipValues = {};
+            plip.arity = 'plip';
+
+            while(token.value == ':') {
+                advance();
+                if(token.arity == 'name') {
+                    plipPiece = token.value;
+                    advance();
+
+                    // If we encountered {plipPiece}={thing}, advance to =, capture thing, then advance to next token
+                    if(token.value == '=') {
+                        advance();
+                        plip.plipValues[plipPiece] = token.value;
+                        advance();
+                    // Otherwise this isn't an assignment, It's just name:thing, capture thing and we're already on the next
+                    // token, so don't advance
+                    } else {
+                        plip.plipValues[plipPiece] = null;
+                    }
+                } else {
+                    error('There is something medically wrong with your plip, expected name or assignment but got: `' + token.value + '`');
+                }
+            }
+
+            // Finally, 
+            expressionToken = plip;
+        } else {
+            // In the interest of less mutability ;)
+            expressionToken = testToken;
+        }
+
+        left = expressionToken.nud();
+
         while(rbp < token.lbp) {
-            t = token;
+            expressionToken = token;
             advance();
-            left = t.led(left);
+            left = expressionToken.led(left);
         }
         return left;
     };
@@ -157,11 +189,11 @@ function makeParser() {
         }
         v = expression(0);
 
-        // We don't care if the next statement is an assignment...
-        //if(!v.assignment && v.id !== '(') {
-            //error(v, 'Bad expression statement.');
-        //}
-        advance(';');
+        // The problem is the closing token can be part of a greater statement, and we don't
+        // want to skip past it if a previous statement call will expect it
+        if(token.id != '}}' && token.id != '%}') {
+            advance(';');
+        }
         return v;
     };
 
@@ -279,7 +311,6 @@ function makeParser() {
     var stmt = function(s, f) {
         var x = symbol(s);
         x.std = f || function() {
-            //log.warn('We have found the endfor keyword and are returning it as a statement');
             this.arity = 'statement';
             this.id = s;
             advance();
@@ -485,46 +516,15 @@ function makeParser() {
         return this;
     });
 
-    /*stmt('{', function () {
-        new_scope();
-        var a = statements();
-        advance('}');
-        scope.pop();
-        return a;
-    });*/
-
     stmt('{%', function() {
-        var a = statements('%}');
-        //log.error('We have made a {% %} statement of',a.id,' with value ',a.value);
-        return a;
+        return statements('%}');
     });
 
     stmt('{{', function() {
-        var lastKey;
-        if(token.arity != 'name') {
-            error(token, 'Expected a plip name.');
-        }
-        this.plipName = token.value;
-        this.plipValues = {};
-
-        while(true) {
-            advance();
-            if(token.value == '=') {
-                advance();
-                if(token.arity != 'name') {
-                    error(token, 'Expected a plip assignment value');
-                }
-                this.plipValues[lastKey] = token.value;
-                advance();
-            } else if(token.arity == 'name') {
-                this.plipValues[(lastKey = token.value)] = null;
-            } else if(token.value != ':') {
-                break;
-            }
-        }
-        delete this.value;
-        advance('}}');
-        return this;
+        log.info('Fetching statements inside of {{ ... }} ...');
+        var a = statements('}}');
+        log.info('Done fetching');
+        return a;
     });
 
     stmt('template', function() {
@@ -606,11 +606,7 @@ function makeParser() {
         advance('in');
         this.second = expression(0);
         advance('%}');
-
-        //log.warn('In for...Advancing to endfor and capturing the contents...');
         this.third = statements('endfor');
-        //log.warn('We have advanced');
-
         this.arity = 'statement';
         //advance('endfor');
         return this;

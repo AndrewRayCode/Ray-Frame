@@ -14,13 +14,16 @@ var templater = module.exports,
 
 log.log_level = 'info';
 
-var a = lexer.tokenize('{% for bob in bob.things %}moo{% endfor %}');
-//log.info((a)[1]);
+var a = lexer.tokenize('{{ bob:boo=bees:tits=fuck:ballSack || tits }} moo');
+//var a = lexer.tokenize('{% bob = cheese %} moo');
+var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(sys.inspect(a[t]));}
+//log.info(tokens);
 var p = parser.parse(a);
 //log.info(p);
-log.warn(compiler.compile(p, {
+var c = compiler.compile(p, {
     role: {name: 'admin'}
-}));
+});
+log.warn(c);
 
 // Function code available on front end and back end
 exports.transientFunctions = '';
