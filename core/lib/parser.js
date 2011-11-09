@@ -13,7 +13,8 @@ function makeParser() {
         token,
         tokens,
         token_nr,
-        state = 'template';
+        state = 'template',
+        topLevel;
 
     var itself = function() {
         return this;
@@ -78,11 +79,15 @@ function makeParser() {
     };
 
     var advance = function(id) {
-        var a, o, t, v;
-        if(id && token.id !== id) {
-            if(id == ';' && ((state == 'control' && token.id != '%}') || (state == 'plip' && token.id != '}}'))) {
-                error(token, 'Expected \'' + id + '\', but instead got `' + token.value + '`');
-            }
+        var a, o, t, v,
+            startState = state;
+        if(id && token.id !== id && id != 'state') {
+            //if((id == ';' && ((state == 'control' && token.id != '%}') || (state == 'plip' && token.id != '}}')))
+                    //|| (id != ';')) {
+                if(id == '(end)' && token.id != 'template') {
+                    error(token, 'Expected `' + id + '`, but instead got `' + token.id + '` (' + token.value + ')');
+                }
+            //}
         }
         if(token_nr >= tokens.length) {
             token = symbol_table['(end)'];
@@ -98,28 +103,34 @@ function makeParser() {
             } else if(a === 'operator') {
                 o = symbol_table[v];
                 if(!o) {
-                    error(t, 'Unknown operator.');
+                    error(t, 'Unknown operator:' + token.value);
                 }
             } else if(a === 'string' || a ===  'number') {
                 o = symbol_table['(literal)'];
                 a = 'literal';
             } else if(a == 'controller' || a == 'plip') {
-                o = symbol_table[v];
                 state = 'template';
+                return advance();
             } else {
                 error(t, 'Unexpected token: `' + t.value + '`');
             }
         } else if(state == 'template') {
             if(a == 'controller') {
                 state = 'control';
-                o = symbol_table[v];
+                return advance();
             } else if(a == 'plip') {
                 state = 'plip';
-                o = symbol_table[v];
+                return advance();
             } else {
                 o = symbol_table[a];
             }
         }
+
+        if(id == 'state' && startState == state) {
+            error(token, 'Expected a state change, but instead got `' + token.value + '`');
+        }
+
+        
         token = Object.create(o);
         token.from  = t.from;
         token.to    = t.to;
@@ -189,21 +200,19 @@ function makeParser() {
         }
         v = expression(0);
 
-        // The problem is the closing token can be part of a greater statement, and we don't
-        // want to skip past it if a previous statement call will expect it
-        if(token.id != '}}' && token.id != '%}') {
-            advance(';');
-        }
+        // TODO: start here
+        advance('state');
         return v;
     };
 
-    var statements = function(endtokens) {
+    var statements = function() {
         var a = [],
             newStatement,
-            endables = endtokens instanceof Array ? endtokens : [endtokens];
+            endables = Array.prototype.slice.call(arguments),
+            startState = state;
 
         while(true) {
-            if(token.id === '}' || token.id === '(end)' || token.id == '%}') {
+            if(token.id === '}' || token.id === '(end)' || startState != state) {
                 break;
             }
             newStatement = statement();
@@ -213,7 +222,7 @@ function makeParser() {
                     break;
                 }
                 a.push(newStatement);
-            }
+            }       
         }
         return a.length === 0 ? null : a.length === 1 ? a[0] : a;
     };
@@ -329,12 +338,16 @@ function makeParser() {
     symbol(',');
     symbol('else');
 
+    symbol('{%');
+    symbol('{{');
     symbol('%}');
     symbol('}}');
-    stmt('endfor');
-    stmt('endblock');
-    stmt('endwhile');
-    stmt('endif');
+
+    symbol('endfor');
+    symbol('endblock');
+    symbol('endwhile');
+    symbol('endif');
+    symbol('in');
 
     constant('true', true);
     constant('false', false);
@@ -367,7 +380,8 @@ function makeParser() {
     infixr('&&', 30);
     infixr('||', 30);
 
-    infixr('===', 40);
+    //infixr('===', 40);
+    infixr('==', 40);
     infixr('!==', 40);
     infixr('<', 40);
     infixr('<=', 40);
@@ -516,16 +530,14 @@ function makeParser() {
         return this;
     });
 
-    stmt('{%', function() {
-        return statements('%}');
-    });
+    //stmt('{%', function() {
+        //return statements('%}');
+    //});
 
-    stmt('{{', function() {
-        log.info('Fetching statements inside of {{ ... }} ...');
-        var a = statements('}}');
-        log.info('Done fetching');
-        return a;
-    });
+    //stmt('{{', function() {
+        //var a = statements('}}');
+        //return a;
+    //});
 
     stmt('template', function() {
         return this;
@@ -565,18 +577,22 @@ function makeParser() {
     });
 
     stmt('if', function() {
-        advance('(');
-        this.first = expression(0);
-        advance(')');
-        this.second = block();
-        if(token.id === 'else') {
-            scope.reserve(token);
-            advance('else');
-            this.third = token.id === 'if' ? statement() : block();
+        var next;
+        this.first = expression(0); // statements(); // ?
+
+        next = statements('endif', 'else');
+        this.second = next;
+
+        if(token.value == 'else') {
+            advance();
+            this.third = statement();
+        } else if(token.value != 'endif') {
+            //throw new Error('Expected `endif` or `else`, but instead got `' + token.value + '`');
+            error(token, 'Expected `endif` or `else`, but instead got `' + token.value + '`');
         } else {
-            this.third = null;
+            advance('endif');
         }
-        this.arity = 'statement';
+
         return this;
     });
 
@@ -605,10 +621,9 @@ function makeParser() {
         this.first = expression(0);
         advance('in');
         this.second = expression(0);
-        advance('%}');
+        advance('state');
         this.third = statements('endfor');
         this.arity = 'statement';
-        //advance('endfor');
         return this;
     });
 
@@ -630,10 +645,13 @@ function makeParser() {
         token_nr = 0;
         new_scope();
         advance();
-        var s = statements();
-        advance('(end)');
+        var stmts = [],
+            next;
+        while((next = statements())) {
+            stmts.push(next);
+        }
         scope.pop();
-        return s;
+        return stmts;
     };
 }
 

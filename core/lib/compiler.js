@@ -21,7 +21,7 @@ function compile(ast, context) {
         if((visitFn = visitors[visitKey])) {
             return visitFn(node);
         } else {
-            log.warn('Warning: Node compiler not implemented: ' + visitKey, ': ', node);
+            log.warn('Warning: Node compiler not implemented: ' + visitKey, ': ', node.value + ' (' + node.arity + ')');
             return '';
         }
     };

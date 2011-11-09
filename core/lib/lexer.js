@@ -49,8 +49,16 @@ function tokenize(input) {
     var advance = function(jump) {
         i += (0 in arguments ? jump : 1);
         c = input.charAt(i);
-        peek = input.charAt(i + 1);
+        setPeek();
         return c;
+    };
+
+    var previousToken = function() {
+        return tokens[tokens.length - 1];
+    };
+
+    var setPeek = function() {
+        peek = input.charAt(i + 1);
     };
 
     // If prefix and suffix strings are not provided, supply defaults.
@@ -73,7 +81,7 @@ function tokenize(input) {
                 // Look for control starts
                 if(c == '{' && (peek == '{' || peek == '%')) {
                     if(buffer.length) {
-                        tokens.push(make('template'));
+                        tokens.push(make('template', buffer || ''));
                     }
                     if(peek == '{') {
                         state = 'plip';
@@ -133,6 +141,7 @@ function tokenize(input) {
                             break;
                         }
                     }
+                    setPeek();
                     tokens.push(make('name'));
 
                 // number.
@@ -186,6 +195,7 @@ function tokenize(input) {
                         i += 1;
                         error(make('number'), 'Bad number');
                     }
+                    setPeek();
 
                     // Convert the string value to a number. If it is finite, then it is a good
                     // token.
@@ -253,6 +263,7 @@ function tokenize(input) {
                         buffer += c;
                         i += 1;
                     }
+                    setPeek();
                     tokens.push(make('string'));
                     advance();
 

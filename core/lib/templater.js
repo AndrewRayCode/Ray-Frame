@@ -14,13 +14,16 @@ var templater = module.exports,
 
 log.log_level = 'info';
 
-var a = lexer.tokenize('{{ bob:boo=bees:tits=fuck:ballSack || tits }} moo');
+//var a = lexer.tokenize('{% for oink in bob %}FUCK{% endif %}');
+var a = lexer.tokenize('{% if oink || moo %}FUCK{% else if poop %}{% endif %}');
+//var a = lexer.tokenize('{% if oink %} PPP {% endif %} balls');
+//var a = lexer.tokenize('{% if oink %} PPP {% endif %}');
 //var a = lexer.tokenize('{% bob = cheese %} moo');
-var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(sys.inspect(a[t]));}
-//log.info(tokens);
-var p = parser.parse(a);
-//log.info(p);
-var c = compiler.compile(p, {
+var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' ('+a[t].value+')');}
+//log.info(tokens.join('\n'));
+var ast = parser.parse(a);
+//log.error(ast[0]);
+var c = compiler.compile(ast, {
     role: {name: 'admin'}
 });
 log.warn(c);
