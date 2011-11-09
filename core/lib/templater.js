@@ -15,7 +15,8 @@ var templater = module.exports,
 log.log_level = 'info';
 
 //var a = lexer.tokenize('{% for oink in bob %}FUCK{% endif %}');
-var a = lexer.tokenize('{% if oink || moo %}FUCK{% else if poop %}{% endif %}');
+//var a = lexer.tokenize('{% if oink || moo %}FUCK{% else if poop %}{% endif %}');
+var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
 //var a = lexer.tokenize('{% if oink %} PPP {% endif %} balls');
 //var a = lexer.tokenize('{% if oink %} PPP {% endif %}');
 //var a = lexer.tokenize('{% bob = cheese %} moo');

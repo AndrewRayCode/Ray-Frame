@@ -80,9 +80,9 @@ function tokenize(input) {
             for(;;) {
                 // Look for control starts
                 if(c == '{' && (peek == '{' || peek == '%')) {
-                    if(buffer.length) {
-                        tokens.push(make('template', buffer || ''));
-                    }
+                    // Always put a blank template block in between }}{{ or %}{% or }%(end) to 
+                    // ease parser's woes
+                    tokens.push(make('template', buffer || ''));
                     if(peek == '{') {
                         state = 'plip';
                         tokens.push(make('plip', '{{'));
