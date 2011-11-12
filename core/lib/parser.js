@@ -539,7 +539,6 @@ function makeParser() {
     stmt('include', function() {
         this.first = expression(0);
         this.arity = 'statement';
-        advance('%}');
         return this;
     });
 

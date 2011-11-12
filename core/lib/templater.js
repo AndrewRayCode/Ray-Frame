@@ -22,6 +22,7 @@ log.log_level = 'info';
 //var a = lexer.tokenize('{% bob = cheese %} moo');
 //var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
 var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
+//var a  = lexer.tokenize('{% include \'a.html\' %} bark bark');
 //var a  = lexer.tokenize('{% block \'list.start\' %}'
         //+ '<ul>'
     //+ '{% endblock %}'
@@ -34,7 +35,7 @@ var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
 var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' ('+a[t].value+')');}
 //log.info(tokens.join('\n'));
 var ast = parser.parse(a);
-log.error(ast[1]);
+log.error(ast);
 var c = compiler.compile(ast, {
     role: {name: 'admin'}
 });
