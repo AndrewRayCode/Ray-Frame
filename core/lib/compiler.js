@@ -28,7 +28,22 @@ function compile(ast, context) {
 
     var visitors = {
         'template': function(node) {
-            return addQuotedString(node.value);
+            if(node.value && node.value.length) {
+                return addQuotedString(node.value);
+            }
+            return '';
+        },
+        'if': function(node) {
+            var output = 'if(' + visit(node.first) + ') {'
+                + visit(node.second);
+
+            if(node.third) {
+                output += '} else ' + visit(node.third);
+            } else {
+                outdent += '}';
+            }
+
+            return output;
         },
         'plip': function(node) {
             var output = '';
@@ -46,13 +61,8 @@ function compile(ast, context) {
             // TODO: Make context data[pageId]
             return addString('context["' + node.plipName + '"]');
         },
-        'control': function(node) {
-            // Include
-
-            // Wrapped by
-
-            // Block
-            return addString('control');
+        'block': function(node) {
+            return '';
         },
         'include': function(node) {
             outdent += '});';
@@ -73,12 +83,12 @@ function compile(ast, context) {
                     value = node.first.value;
                 return 'var item;for(locals["' + key + '"] in ' + second + ') {'
                     + 'locals["' + value + '"] = ' + second + '["' + key + '"]'
-                    + visit(node.first)
+                    + visit(node.third)
                     + '}'; 
             }
             // Iterate over an array
             return 'var item;for(var ' + i + '=0; locals["' + node.first.value + '"] = ' + visit(node.second) + '[' + i + '++];) {'
-                + visit(node.first)
+                + visit(node.third)
                 + '}'; 
         },
         // A list of statements

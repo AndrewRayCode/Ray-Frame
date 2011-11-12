@@ -14,20 +14,32 @@ var templater = module.exports,
 
 log.log_level = 'info';
 
-//var a = lexer.tokenize('{% for oink in bob %}FUCK{% endif %}');
+//var a = lexer.tokenize('{% for oink in bob %}FUCK{% endfor %}');
 //var a = lexer.tokenize('{% if oink || moo %}FUCK{% else if poop %}{% endif %}');
-var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
+//var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
 //var a = lexer.tokenize('{% if oink %} PPP {% endif %} balls');
 //var a = lexer.tokenize('{% if oink %} PPP {% endif %}');
 //var a = lexer.tokenize('{% bob = cheese %} moo');
+//var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
+var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
+//var a  = lexer.tokenize('{% block \'list.start\' %}'
+        //+ '<ul>'
+    //+ '{% endblock %}'
+    //+ '{% block \'list.item\' %}'
+        //+'<li>{{ child }}</li>'
+    //+ '{% endblock %}'
+    //+ '{% block \'list.end\' %}'
+        //+'</ul>'
+    //+ '{% endblock %}');
 var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' ('+a[t].value+')');}
 //log.info(tokens.join('\n'));
 var ast = parser.parse(a);
-//log.error(ast[0]);
+log.error(ast[1]);
 var c = compiler.compile(ast, {
     role: {name: 'admin'}
 });
-log.warn(c);
+log.warn('------------- compiled code -------------\n',c);
+log.error(uglify(c.compiled));
 
 // Function code available on front end and back end
 exports.transientFunctions = '';

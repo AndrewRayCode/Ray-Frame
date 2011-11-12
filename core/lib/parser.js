@@ -212,7 +212,9 @@ function makeParser() {
             startState = state;
 
         while(true) {
-            if(token.id === '}' || token.id === '(end)' || startState != state) {
+            if(token.id == '(end)' && endables.length) {
+                error(token, 'Expected `' + endables.join('` or `') + '`, but instead got `' + token.value + '`');
+            } else if(token.id === '}' || token.id === '(end)' || (!endables.length && (startState != state))) {
                 break;
             }
             newStatement = statement();
@@ -222,7 +224,7 @@ function makeParser() {
                     break;
                 }
                 a.push(newStatement);
-            }       
+            }
         }
         return a.length === 0 ? null : a.length === 1 ? a[0] : a;
     };
@@ -530,15 +532,6 @@ function makeParser() {
         return this;
     });
 
-    //stmt('{%', function() {
-        //return statements('%}');
-    //});
-
-    //stmt('{{', function() {
-        //var a = statements('}}');
-        //return a;
-    //});
-
     stmt('template', function() {
         return this;
     });
@@ -547,6 +540,13 @@ function makeParser() {
         this.first = expression(0);
         this.arity = 'statement';
         advance('%}');
+        return this;
+    });
+
+    stmt('block', function() {
+        this.first = expression(0);
+        this.second = statements('endblock');
+        this.arity = 'statement';
         return this;
     });
 
@@ -579,6 +579,7 @@ function makeParser() {
     stmt('if', function() {
         var next;
         this.first = expression(0); // statements(); // ?
+        this.arity = 'statement';
 
         next = statements('endif', 'else');
         this.second = next;
@@ -590,6 +591,9 @@ function makeParser() {
             //throw new Error('Expected `endif` or `else`, but instead got `' + token.value + '`');
             error(token, 'Expected `endif` or `else`, but instead got `' + token.value + '`');
         } else {
+            // Without setting this explicitly, this.third is becoming a circular reference to
+            // the same `else` node. Wtf?
+            this.third = null;
             advance('endif');
         }
 
@@ -621,14 +625,9 @@ function makeParser() {
         this.first = expression(0);
         advance('in');
         this.second = expression(0);
-        advance('state');
         this.third = statements('endfor');
         this.arity = 'statement';
         return this;
-    });
-
-    stmt('block', function() {
-        advance('endblock');
     });
 
     stmt('while', function() {
