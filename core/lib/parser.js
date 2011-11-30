@@ -10,6 +10,7 @@ function error(token, message) {
 function makeParser() {
     var scope,
         symbol_table = {},
+        metadata = {},
         token,
         tokens,
         token_nr,
@@ -536,13 +537,22 @@ function makeParser() {
         return this;
     });
 
+    stmt('extends', function() {
+        metadata.hasExtendsStatement = true;
+        this.first = expression(0);
+        this.arity = 'statement';
+        return this;
+    });
+
     stmt('include', function() {
+        metadata.hasIncludeStatement = true;
         this.first = expression(0);
         this.arity = 'statement';
         return this;
     });
 
     stmt('block', function() {
+        metadata.hasBlocks = true;
         this.first = expression(0);
         this.second = statements('endblock');
         this.arity = 'statement';
@@ -649,7 +659,10 @@ function makeParser() {
             stmts.push(next);
         }
         scope.pop();
-        return stmts;
+        return {
+            ast: stmts,
+            metadata: metadata
+        };
     };
 }
 

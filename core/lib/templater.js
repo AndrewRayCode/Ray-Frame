@@ -21,7 +21,8 @@ log.log_level = 'info';
 //var a = lexer.tokenize('{% if oink %} PPP {% endif %}');
 //var a = lexer.tokenize('{% bob = cheese %} moo');
 //var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
-var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
+//var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
+var a  = lexer.tokenize('{% extends \'a.html\' %}{% block \'list.start\' %}a{% endblock %}');
 //var a  = lexer.tokenize('{% include \'a.html\' %} bark bark');
 //var a  = lexer.tokenize('{% block \'list.start\' %}'
         //+ '<ul>'
@@ -34,9 +35,9 @@ var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
     //+ '{% endblock %}');
 var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' ('+a[t].value+')');}
 //log.info(tokens.join('\n'));
-var ast = parser.parse(a);
-log.error(ast);
-var c = compiler.compile(ast, {
+var treeData = parser.parse(a);
+log.error(treeData.ast);
+var c = compiler.compile(treeData, {
     role: {name: 'admin'}
 });
 log.warn('------------- compiled code -------------\n',c);

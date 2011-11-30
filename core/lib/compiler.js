@@ -1,8 +1,9 @@
 var log = require('simple-logger'),
     utils = require('./utils');
 
-function compile(ast, context) {
+function compile(treeData, context) {
     var buffer = '',
+        predent = '',
         outdent = '',
         identifier = 'str',
         viewsToCreate = [],
@@ -62,7 +63,11 @@ function compile(ast, context) {
             return addString('context["' + node.plipName + '"]');
         },
         'block': function(node) {
-            return '';
+            return 'data.blocks["' + node.first.value + '"] = '
+                + (treeData.hasExtendsStatement ? 'data.blocks["' + node.first.value + '"] || ' : '')
+                + 'function() {'
+                + visit(node.second)
+                + '};';
         },
         'include': function(node) {
             outdent += '});';
@@ -72,6 +77,17 @@ function compile(ast, context) {
                 + 'templater.templateCache["' + id + context.role.name+'"]'
                 + '(cache, templater, user, "' + id + '", data, function(err, parsed) {'
                 + identifier + ' += parsed;';
+        },
+        'extends': function(node){
+            var id = node.first.value;
+
+            outdent = 'templater["' + id + '"]'
+                + '(cache, templater, user, "' + id + '", data, function(err, parsed) {'
+                + 'cb(err, parsed)'
+                + '});'
+                + outdent;
+
+            return '';
         },
         'for': function(node) {
             var i = nextIterator();
@@ -148,8 +164,9 @@ function compile(ast, context) {
         + 'cache.fillIn(data, pageId, function(err) {'
             //+ 'var entryId = pageId;'
             + 'if(err) { return cb(err); }'
-            + visit(ast)
-            + 'cb(null, ' + identifier + ');'
+            + visit(treeData.ast)
+            // If we extend something, that's what we render with our blocks
+            + (treeData.hasExtendsStatement ? 'cb(null, ' + identifier + ');' : '')
             + outdent
         + '});';
 
