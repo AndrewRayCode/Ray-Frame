@@ -40,8 +40,8 @@ log.error(treeData.ast);
 var c = compiler.compile(treeData, {
     role: {name: 'admin'}
 });
-log.warn('------------- compiled code -------------\n',c);
-log.error(uglify(c.compiled));
+log.warn('------------- final code -------------\n',c.compiled);
+//log.error(uglify(c.compiled));
 
 // Function code available on front end and back end
 exports.transientFunctions = '';

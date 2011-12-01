@@ -5,8 +5,13 @@ function compile(treeData, context) {
     var buffer = '',
         predent = '',
         outdent = '',
+        blocks = '',
+        includes = '',
         identifier = 'str',
         viewsToCreate = [],
+        hasExtends = treeData.hasExtendsStatement,
+        hasBlocks = treeData.hasBlocks,
+        renderFromThisContext = !hasExtends,
         iterator = 0;
 
     var visit = function(node) {
@@ -63,24 +68,35 @@ function compile(treeData, context) {
             return addString('context["' + node.plipName + '"]');
         },
         'block': function(node) {
-            return 'data.blocks["' + node.first.value + '"] = '
-                + (treeData.hasExtendsStatement ? 'data.blocks["' + node.first.value + '"] || ' : '')
-                + 'function() {'
+            blocks += 'data.blocks["' + node.first.value + '"] = '
+                + (renderFromThisContext ? 'data.blocks["' + node.first.value + '"] || ' : '')
+                + 'function(cb) {'
                 + visit(node.second)
+                + 'cb();'
                 + '};';
+
+            if(renderFromThisContext) {
+                outdent += '});';
+                return 'data.blocks["' + node.first.value + '"](function() {';
+            }
         },
         'include': function(node) {
             outdent += '});';
             var id = node.first.value;
 
-            return 'data["' + id + '"].parent = pageId;'
+            // Get the blocks from the included page
+            // TODO: We need to build the have / find and sys.inspect
+            includes += 'data["' + id + '"].parent = pageId;'
+                + 'data.included = true;'
                 + 'templater.templateCache["' + id + context.role.name+'"]'
-                + '(cache, templater, user, "' + id + '", data, function(err, parsed) {'
-                + identifier + ' += parsed;';
+                + '(cache, templater, user, "' + id + '", data, function(err) {'
+                + 'data.included = false;';
+            return '';
         },
         'extends': function(node){
             var id = node.first.value;
 
+            // Render the parent with our blocks
             outdent = 'templater["' + id + '"]'
                 + '(cache, templater, user, "' + id + '", data, function(err, parsed) {'
                 + 'cb(err, parsed)'
@@ -156,6 +172,8 @@ function compile(treeData, context) {
         return identifier + '+=' + val + ';';
     };
 
+    var contentBeforeOutdent = visit(treeData.ast);
+
     //return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
     var compiled =
         'var ' + identifier + ' = "",'
@@ -164,9 +182,13 @@ function compile(treeData, context) {
         + 'cache.fillIn(data, pageId, function(err) {'
             //+ 'var entryId = pageId;'
             + 'if(err) { return cb(err); }'
-            + visit(treeData.ast)
-            // If we extend something, that's what we render with our blocks
-            + (treeData.hasExtendsStatement ? 'cb(null, ' + identifier + ');' : '')
+            + blocks
+            + contentBeforeOutdent
+            + (renderFromThisContext ? 
+                    'if(!data.included) {'
+                    + 'cb(null, ' + identifier + ');'
+                    + '}'
+                : '')
             + outdent
         + '});';
 
