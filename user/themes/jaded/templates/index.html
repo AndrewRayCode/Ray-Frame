@@ -1,10 +1,11 @@
-{% wrapped by global.html %}
+wrapped by global.html
 
 <div class="main">
     Main div here.
     <div class="intro">Welcome message: {{welcome_msg}}</div>
 
-    {{pages:list:view=link.html:type=blog:sort=user}}
     <hr />
-    {{blogs:list:view=link.html:type=blog:sort=user}}
+    pages:list:view=link.html:type=blog:sort=user
+    <hr />
+    blogs:list:view=link.html:type=blog:sort=user
 </div>

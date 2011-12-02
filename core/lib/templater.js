@@ -75,7 +75,11 @@ exports.cacheTheme = function(theme, permissions, cb) {
             }
         }
         while(l--) {
-            process(files[l]);
+            if(files[l].indexOf('index.html') > -1) {
+                process(files[l]);
+            } else {
+                total--;
+            }
         }
     });
 };
@@ -130,6 +134,7 @@ exports.mangleToFunction = function(funcStr) {
     try {
         funcStr = uglify(funcStr);
     } catch(e) {
+        log.error(funcStr);
         throw new Error('Template function string could not be parsed, syntax error found by uglify-js. This is bad.');
     }
     return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
@@ -739,41 +744,44 @@ exports.processTemplateString = function(template, options, cb) {
         parseOptions.state = options.preState;
     }
 
-    var parser = new templater.parser(parseOptions);
+    var tokens = lexer.tokenize(template);
+    var treeData = parser.parse(tokens);
+    var output = compiler.compile(treeData, {
+        role: {name: 'admin'}
+    });
 
-    parser.parse(template, function(err, parseData) {
-        if(err) {
-            return cb(err);
-        }
-
+    cb(null, {
+        funcString: output.compiled,
+        parseData: {}
+    });
         // function('cache', 'templater', 'pageId', 'data', 'cb');
 
-        var processedOutput = 
-            'var ' + parser.identifier + ' = "",'
-            + 'found = ' + sys.inspect(parseData.itemsToCache) + ';'
-            + parseData.declarations
-            + 'cache.fillIn(data, found, pageId, function(err) {'
-                + 'var entryId = pageId;'
-                + 'if(err) { return cb(err); }'
-                + parseData.beforeTemplate
-                + parser.getBuffer('output')
-                + parseData.afterTemplate
-                + 'cb(null, ' + parser.identifier + ');'
-            + '});';
+        //var processedOutput = 
+            //'var ' + parser.identifier + ' = "",'
+            //+ 'found = ' + sys.inspect(parseData.itemsToCache) + ';'
+            //+ parseData.declarations
+            //+ 'cache.fillIn(data, found, pageId, function(err) {'
+                //+ 'var entryId = pageId;'
+                //+ 'if(err) { return cb(err); }'
+                //+ parseData.beforeTemplate
+                //+ parser.getBuffer('output')
+                //+ parseData.afterTemplate
+                //+ 'cb(null, ' + parser.identifier + ');'
+            //+ '});';
 
-        cb(null, {
-            funcString: processedOutput,
-            // Store our raw data in case something else needs to tear it apart
-            parseData: {
-                beforeTemplate: parseData.beforeTemplate,
-                afterTemplate: parseData.afterTemplate,
-                itemsToCache: parseData.itemsToCache,
-                declarations: parseData.declarations,
-                identifier: parser.identifier,
-                buffers: parser.getBuffers()
-            }
-        });
-    });
+        //cb(null, {
+            //funcString: processedOutput,
+            //Store our raw data in case something else needs to tear it apart
+            //parseData: {
+                //beforeTemplate: parseData.beforeTemplate,
+                //afterTemplate: parseData.afterTemplate,
+                //itemsToCache: parseData.itemsToCache,
+                //declarations: parseData.declarations,
+                //identifier: parser.identifier,
+                //buffers: parser.getBuffers()
+            //}
+        //});
+    //});
 };
 
 exports.addNamespace = function(namespace) {

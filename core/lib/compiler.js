@@ -1,4 +1,5 @@
 var log = require('simple-logger'),
+    sys = require('sys'),
     utils = require('./utils');
 
 function compile(treeData, context) {
@@ -8,6 +9,7 @@ function compile(treeData, context) {
         blocks = '',
         includes = '',
         identifier = 'str',
+        itemsToCache = {},
         viewsToCreate = [],
         hasExtends = treeData.hasExtendsStatement,
         hasBlocks = treeData.hasBlocks,
@@ -35,7 +37,7 @@ function compile(treeData, context) {
     var visitors = {
         'template': function(node) {
             if(node.value && node.value.length) {
-                return addQuotedString(node.value);
+                return addQuotedString(escapeChars(node.value));
             }
             return '';
         },
@@ -83,6 +85,7 @@ function compile(treeData, context) {
         'include': function(node) {
             outdent += '});';
             var id = node.first.value;
+            itemsToCache[id] = false;
 
             // Get the blocks from the included page
             // TODO: We need to build the have / find and sys.inspect
@@ -95,6 +98,7 @@ function compile(treeData, context) {
         },
         'extends': function(node){
             var id = node.first.value;
+            itemsToCache[id] = false;
 
             // Render the parent with our blocks
             outdent = 'templater["' + id + '"]'
@@ -113,13 +117,13 @@ function compile(treeData, context) {
                 var second = visit(node.second),
                     key = node.first.key,
                     value = node.first.value;
-                return 'var item;for(locals["' + key + '"] in ' + second + ') {'
-                    + 'locals["' + value + '"] = ' + second + '["' + key + '"]'
+                return 'var item;for(data.locals["' + key + '"] in ' + second + ') {'
+                    + 'data.locals["' + value + '"] = ' + second + '["' + key + '"]'
                     + visit(node.third)
                     + '}'; 
             }
             // Iterate over an array
-            return 'var item;for(var ' + i + '=0; locals["' + node.first.value + '"] = ' + visit(node.second) + '[' + i + '++];) {'
+            return 'var item;for(var ' + i + '=0; data.locals["' + node.first.value + '"] = ' + visit(node.second) + '[' + i + '++];) {'
                 + visit(node.third)
                 + '}'; 
         },
@@ -139,7 +143,7 @@ function compile(treeData, context) {
                 return 'KHHAAAANNNN';
             } else {
                 return '(data["' + node.first.value + '"]["' + node.second.value + '"]'
-                    + ' || locals["' + node.first.value + '"]["' + node.second.value + '"])';
+                    + ' || data.locals["' + node.first.value + '"]["' + node.second.value + '"])';
             }
         },
         '=': function(node) {
@@ -147,7 +151,7 @@ function compile(treeData, context) {
         },
         'name': function(node) {
             return '(data["' + node.value + '"]'
-                + ' || locals["' + node.value + '"])';
+                + ' || data.locals["' + node.value + '"]);';
         },
         'literal': function(node) {
             return 'literal';
@@ -165,11 +169,15 @@ function compile(treeData, context) {
     };
 
     var addQuotedString = function(val) {
-        return addString('"' + val + '"');
+        return addString('"' + val.replace(/\n|\r/g, '\\n') + '"');
     };
 
     var addString = function(val) {
         return identifier + '+=' + val + ';';
+    };
+
+    var escapeChars = function(str) {
+        return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     };
 
     var contentBeforeOutdent = visit(treeData.ast);
@@ -179,7 +187,7 @@ function compile(treeData, context) {
         'var ' + identifier + ' = "",'
             + 'context = data[pageId];'
         //+ parseData.declarations
-        + 'cache.fillIn(data, pageId, function(err) {'
+        + 'cache.fillIn(data, ' + sys.inspect(itemsToCache) + ', pageId, function(err) {'
             //+ 'var entryId = pageId;'
             + 'if(err) { return cb(err); }'
             + blocks
