@@ -69,16 +69,19 @@ function compile(treeData, context) {
             return addString('context.model["' + node.plipName + '"]');
         },
         'block': function(node) {
-            blocks += 'data.blocks["' + node.first.value + '"] = '
-                + (renderFromThisContext ? 'data.blocks["' + node.first.value + '"] || ' : '')
+            blocks += '\ndata.blocks["' + node.first.value + '"] = '
+                //+ (renderFromThisContext ? '' : 'data.blocks["' + node.first.value + '"] || ')
                 + 'function(cb) {'
+                + 'var ' + identifier + ' = "";'
                 + visit(node.second)
-                + 'cb();'
+                + 'cb(null, ' + identifier + ');'
                 + '};';
 
+            // Render the block
             if(renderFromThisContext) {
                 outdent += '});';
-                return 'data.blocks["' + node.first.value + '"](function() {';
+                return 'data.blocks["' + node.first.value + '"](function(null, parsed) {'
+                    + addString('parsed');
             }
         },
         'include': function(node) {
@@ -88,7 +91,8 @@ function compile(treeData, context) {
 
             // Get the blocks from the included page
             // TODO: We need to build the have / find and sys.inspect
-            includes += 'data[pageId]["' + id + '"].parent = pageId;'
+            includes += 'data["' + id + '"] = data["' + id + '"] || {};'
+                + 'data["' + id + '"].parent = pageId;'
                 + 'data.included = true;'
                 + 'templater.templateCache["' + id + context.role.name+'"]'
                 + '(cache, templater, user, "' + id + '", data, function(err) {'
@@ -189,11 +193,18 @@ function compile(treeData, context) {
         + 'cache.fillIn(data, ' + sys.inspect(itemsToCache) + ', pageId, function(err) {'
             //+ 'var entryId = pageId;'
             + 'if(err) { return cb(err); }'
-            + blocks
+            // Set up defined blocks if we have them
+            + (blocks ? 
+                    'data.blocks = data.blocks || {};' + blocks
+                : '')
+            + includes
             + contentBeforeOutdent
+            // Render this page if we aren't passing control to another page
             + (renderFromThisContext ? 
                     'if(!data.included) {'
                     + 'cb(null, ' + identifier + ');'
+                    + '} else {'
+                    + 'cb(null, data);'
                     + '}'
                 : '')
             + outdent

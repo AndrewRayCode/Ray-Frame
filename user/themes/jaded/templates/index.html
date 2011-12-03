@@ -4,8 +4,12 @@ wrapped by global.html
     Main div here.
     <div class="intro">Welcome message: {{welcome_msg}}</div>
 
+    {% block test %}{% endblock %}
+
     <hr />
     pages:list:view=link.html:type=blog:sort=user
     <hr />
     blogs:list:view=link.html:type=blog:sort=user
 </div>
+
+{% include 'test.html' %}

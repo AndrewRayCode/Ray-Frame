@@ -86,6 +86,14 @@ exports.createServer = function(options, cb) {
                     } else {
                         log.warn('Non-existant page was requested (404): `'+dbPath+'`');
                         res.writeHead(404, {'Content-Type': 'text/html'});
+
+                        for(var template in templater.rawCache) {
+                            if(template.indexOf('admin') > -1) {
+                                res.write('<br /><br /><b>' + template + '</b><hr /><code>'
+                                    + templater.rawCache[template].funcString.toLocaleString()
+                                + '</code>');
+                            }
+                        }
                         res.end('Todo: This should be some standardized 404 page');
                     }
                 }
@@ -265,7 +273,10 @@ exports.serveTemplate = function(user, pageData, cb) {
 
     // function('cache', 'templater', 'user', 'pageId', 'data', 'cb');
     try {
-        templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, cb);
+        templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, function(err, txt) {
+            txt += '<br /><br />' + templater.rawCache[pageData.template + user.role].funcString.toLocaleString();
+            cb(err, txt);
+        });
     } catch (e) {
         cb(null, templater.rawCache[pageData.template + user.role].funcString.toLocaleString()
             + '<hr />'
