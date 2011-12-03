@@ -256,7 +256,7 @@ exports.serveTemplate = function(user, pageData, cb) {
     var data = {};
 
     data[pageData._id] = {
-        variables: pageData,
+        model: pageData,
         locals: {}
     };
 
@@ -267,7 +267,7 @@ exports.serveTemplate = function(user, pageData, cb) {
     try {
         templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, cb);
     } catch (e) {
-        cb(null, templater.templateCache[pageData.template + user.role].toLocaleString()
+        cb(null, templater.rawCache[pageData.template + user.role].funcString.toLocaleString()
             + '<hr />'
             + e.stack.replace(/\n/g, '<br />'));
     }

@@ -752,7 +752,9 @@ exports.processTemplateString = function(template, options, cb) {
 
     cb(null, {
         funcString: output.compiled,
-        parseData: {}
+        parseData: {
+            funcString: output.compiled
+        }
     });
         // function('cache', 'templater', 'pageId', 'data', 'cb');
 

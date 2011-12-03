@@ -66,8 +66,7 @@ function compile(treeData, context) {
                 return output;
             }
 
-            // TODO: Make context data[pageId]
-            return addString('context["' + node.plipName + '"]');
+            return addString('context.model["' + node.plipName + '"]');
         },
         'block': function(node) {
             blocks += 'data.blocks["' + node.first.value + '"] = '
@@ -89,7 +88,7 @@ function compile(treeData, context) {
 
             // Get the blocks from the included page
             // TODO: We need to build the have / find and sys.inspect
-            includes += 'data["' + id + '"].parent = pageId;'
+            includes += 'data[pageId]["' + id + '"].parent = pageId;'
                 + 'data.included = true;'
                 + 'templater.templateCache["' + id + context.role.name+'"]'
                 + '(cache, templater, user, "' + id + '", data, function(err) {'
@@ -117,13 +116,13 @@ function compile(treeData, context) {
                 var second = visit(node.second),
                     key = node.first.key,
                     value = node.first.value;
-                return 'var item;for(data.locals["' + key + '"] in ' + second + ') {'
-                    + 'data.locals["' + value + '"] = ' + second + '["' + key + '"]'
+                return 'var item;for(context.locals["' + key + '"] in ' + second + ') {'
+                    + 'context.locals["' + value + '"] = ' + second + '["' + key + '"]'
                     + visit(node.third)
                     + '}'; 
             }
             // Iterate over an array
-            return 'var item;for(var ' + i + '=0; data.locals["' + node.first.value + '"] = ' + visit(node.second) + '[' + i + '++];) {'
+            return 'var item;for(var ' + i + '=0; context.locals["' + node.first.value + '"] = ' + visit(node.second) + '[' + i + '++];) {'
                 + visit(node.third)
                 + '}'; 
         },
@@ -142,16 +141,16 @@ function compile(treeData, context) {
             if(node.first.value == 'child') {
                 return 'KHHAAAANNNN';
             } else {
-                return '(data["' + node.first.value + '"]["' + node.second.value + '"]'
-                    + ' || data.locals["' + node.first.value + '"]["' + node.second.value + '"])';
+                return '(context.model["' + node.first.value + '"]["' + node.second.value + '"]'
+                    + ' || context.locals["' + node.first.value + '"]["' + node.second.value + '"])';
             }
         },
         '=': function(node) {
             return visit(node.first) + '=' + visit(node.second) + ';';
         },
         'name': function(node) {
-            return '(data["' + node.value + '"]'
-                + ' || data.locals["' + node.value + '"]);';
+            return '(context.model["' + node.value + '"]'
+                + ' || context.locals["' + node.value + '"]);';
         },
         'literal': function(node) {
             return 'literal';
