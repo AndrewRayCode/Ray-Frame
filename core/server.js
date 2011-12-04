@@ -23,7 +23,7 @@ exports.createServer = function(options, cb) {
     var express = express_lib.createServer(),
         // TODO: If couch isn't running we just get a top level exception thrown on first access atempt. Would be nice to
         // tell user to start couch.
-        couch_client = require('../../node-couchdb/index.js').createClient(5984, 'localhost'),
+        couch_client = require('node_modules/node-couchdb/index.js').createClient(5984, 'localhost'),
         couch = couch_client.db(options.db_name || 'rayframe'),
         theme = options.theme || 'ray-frame',
         core_static = 'core/static/',
@@ -216,12 +216,12 @@ exports.setUpAccess = function(express) {
             }
         }
     }
-    express.get('/'+prefixii[admin], function(req, res) {
-        exports.serveTemplate = function(user, urlObj, pageData, cb) {
-        }
-    });
-    express.post('/'+prefixii[admin], function(req, res) {
-    });
+    //express.get('/'+prefixii[admin], function(req, res) {
+        //exports.serveTemplate = function(user, urlObj, pageData, cb) {
+        //};
+    //});
+    //express.post('/'+prefixii[admin], function(req, res) {
+    //});
 };
 
 // Serve a template from cache or get new version
