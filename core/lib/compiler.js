@@ -13,6 +13,7 @@ function compile(treeData, context) {
         viewsToCreate = [],
         hasExtends = treeData.metadata.hasExtendsStatement,
         hasBlocks = treeData.metadata.hasBlocks,
+        hasIncludes = treeData.metadata.hasIncludeStatement,
         renderFromThisContext = !hasExtends,
         iterator = 0;
 
@@ -69,8 +70,9 @@ function compile(treeData, context) {
             return addString('context.model["' + node.plipName + '"]');
         },
         'block': function(node) {
-            blocks += '\ndata.blocks["' + node.first.value + '"] = '
-                + (renderFromThisContext ? 'data.blocks["' + node.first.value + '"] || ' : '')
+            blocks += 'data.blocks' + 
+                (hasExtends ? '.extender["' + node.first.value + '"] = data.blocks.extender["' + node.first.value + '"] || '
+                 : '["' + node.first.value + '"] = ')
                 + 'function(cb) {'
                 + 'var ' + identifier + ' = "";'
                 + visit(node.second)
@@ -80,7 +82,7 @@ function compile(treeData, context) {
             // Render the block
             if(renderFromThisContext) {
                 outdent += '});';
-                return 'data.blocks["' + node.first.value + '"](function(null, parsed) {'
+                return '(data.blocks.extender["' + node.first.value + '"] || data.blocks["' + node.first.value + '"])(function(null, parsed) {'
                     + addString('parsed');
             }
             return '';
@@ -196,7 +198,7 @@ function compile(treeData, context) {
             + 'if(err) { return cb(err); }'
             // Set up defined blocks if we have them
             + (blocks ? 
-                    'data.blocks = data.blocks || {};' + blocks
+                    'data.blocks = data.blocks || {extender: {}};' + blocks
                 : '')
             + includes
             + contentBeforeOutdent

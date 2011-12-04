@@ -5,10 +5,7 @@ wrapped by global.html
     <div class="intro">Welcome message: {{welcome_msg}}</div>
 
     {% block body %}
-        <b> I am the only thing that should show up on this page </b>
-    {% endblock %}
-    {% block body2 %}
-        <b> oh, and me, bitch</b>
+        <i>I should show up, I'm from index.html</i>
     {% endblock %}
 
     <hr />
@@ -17,4 +14,4 @@ wrapped by global.html
     blogs:list:view=link.html:type=blog:sort=user
 </div>
 
-{% extends 'test.html' %}
+{% include 'test.html' %}
