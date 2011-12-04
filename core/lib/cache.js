@@ -52,7 +52,7 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
                 }
                 for(var x = 0, doc; doc = docs[x++];) {
                     // Modify `knowns` object in place. This is where we add items. Adding locals for convenience. May not be best way
-                    knowns[doc._id] = {variables: doc, locals: {}};
+                    knowns[doc._id] = {model: doc, locals: {}};
                 }
 
                 checkIfFinished();

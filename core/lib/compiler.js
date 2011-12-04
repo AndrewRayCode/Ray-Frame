@@ -156,8 +156,8 @@ function compile(treeData, context) {
             return visit(node.first) + '=' + visit(node.second) + ';';
         },
         'name': function(node) {
-            return '(context.model["' + node.value + '"]'
-                + ' || context.locals["' + node.value + '"]);';
+            return addString('(context.model["' + node.value + '"]'
+                + ' || context.locals["' + node.value + '"])');
         },
         'literal': function(node) {
             return 'literal';
@@ -190,10 +190,10 @@ function compile(treeData, context) {
 
     //return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
     var compiled =
-        'var ' + identifier + ' = "",'
-            + 'context = data[pageId];'
+        'var ' + identifier + ' = "";'
         //+ parseData.declarations
         + 'cache.fillIn(data, ' + sys.inspect(itemsToCache) + ', pageId, function(err) {'
+            + 'var context = data[pageId];'
             //+ 'var entryId = pageId;'
             + 'if(err) { return cb(err); }'
             // Set up defined blocks if we have them

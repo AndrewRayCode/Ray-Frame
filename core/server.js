@@ -181,7 +181,9 @@ exports.resetDatabase = function(couch, callback) {
                             // TEST DATA
 
                             // root is special case. Let couch name other keys for page objects
-                            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'test', url: utils.sanitizeUrl('/'),
+                            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'Velokmen!', url: utils.sanitizeUrl('/'),
+                                parents: []/*, pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']*/},
+                            {_id:'test.html', template:'test.html', title:'hello', welcome_msg: 'Test says Velokmen!', test_msg: 'Test message!',
                                 parents: []/*, pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']*/},
 
                             //{_id:'header.html', template:'header.html'},
