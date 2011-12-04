@@ -4,7 +4,12 @@ wrapped by global.html
     Main div here.
     <div class="intro">Welcome message: {{welcome_msg}}</div>
 
-    {% block test %}{% endblock %}
+    {% block body %}
+        <b> I am the only thing that should show up on this page </b>
+    {% endblock %}
+    {% block body2 %}
+        <b> oh, and me, bitch</b>
+    {% endblock %}
 
     <hr />
     pages:list:view=link.html:type=blog:sort=user
@@ -12,4 +17,4 @@ wrapped by global.html
     blogs:list:view=link.html:type=blog:sort=user
 </div>
 
-{% include 'test.html' %}
+{% extends 'test.html' %}

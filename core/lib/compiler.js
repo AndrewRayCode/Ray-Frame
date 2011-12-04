@@ -11,8 +11,8 @@ function compile(treeData, context) {
         identifier = 'str',
         itemsToCache = {},
         viewsToCreate = [],
-        hasExtends = treeData.hasExtendsStatement,
-        hasBlocks = treeData.hasBlocks,
+        hasExtends = treeData.metadata.hasExtendsStatement,
+        hasBlocks = treeData.metadata.hasBlocks,
         renderFromThisContext = !hasExtends,
         iterator = 0;
 
@@ -70,7 +70,7 @@ function compile(treeData, context) {
         },
         'block': function(node) {
             blocks += '\ndata.blocks["' + node.first.value + '"] = '
-                //+ (renderFromThisContext ? '' : 'data.blocks["' + node.first.value + '"] || ')
+                + (renderFromThisContext ? 'data.blocks["' + node.first.value + '"] || ' : '')
                 + 'function(cb) {'
                 + 'var ' + identifier + ' = "";'
                 + visit(node.second)
@@ -83,6 +83,7 @@ function compile(treeData, context) {
                 return 'data.blocks["' + node.first.value + '"](function(null, parsed) {'
                     + addString('parsed');
             }
+            return '';
         },
         'include': function(node) {
             outdent += '});';
@@ -94,7 +95,7 @@ function compile(treeData, context) {
             includes += 'data["' + id + '"] = data["' + id + '"] || {};'
                 + 'data["' + id + '"].parent = pageId;'
                 + 'data.included = true;'
-                + 'templater.templateCache["' + id + context.role.name+'"]'
+                + 'templater.templateCache["' + id + context.role.name + '"]'
                 + '(cache, templater, user, "' + id + '", data, function(err) {'
                 + 'data.included = false;';
             return '';
@@ -104,7 +105,7 @@ function compile(treeData, context) {
             itemsToCache[id] = false;
 
             // Render the parent with our blocks
-            outdent = 'templater["' + id + '"]'
+            outdent = 'templater.templateCache["' +  id + context.role.name + '"]'
                 + '(cache, templater, user, "' + id + '", data, function(err, parsed) {'
                 + 'cb(err, parsed)'
                 + '});'
