@@ -75,7 +75,10 @@ exports.cacheTheme = function(theme, permissions, cb) {
             }
         }
         while(l--) {
-            if(files[l].indexOf('index.html') > -1 || files[l].indexOf('test.html') > -1 || files[l].indexOf('cow.html') > -1) {
+            if(files[l].indexOf('index.html') > -1 
+                || files[l].indexOf('test.html') > -1 
+                || files[l].indexOf('list.html') > -1 
+                || files[l].indexOf('cow.html') > -1) {
                 process(files[l]);
             } else {
                 total--;

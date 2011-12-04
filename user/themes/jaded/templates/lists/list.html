@@ -1,11 +1,13 @@
-{% start %}
+{% list %}
+
+{% block start %}
     <ul>
-{% /start %}
+{% endblock %}
 
-{% end %}
+{% block end %}
     </ul>
-{% /end %}
+{% endblock %}
 
-{% element %}
-    <li class="{{index}}">{{child}}</li>
-{% /element %}
+{% block element %}
+    <li class="{{loop.index}}">{{child}}</li>
+{% endblock %}

@@ -148,8 +148,8 @@ function compile(treeData, context) {
             if(node.first.value == 'child') {
                 return 'KHHAAAANNNN';
             } else {
-                return '(context.model["' + node.first.value + '"]["' + node.second.value + '"]'
-                    + ' || context.locals["' + node.first.value + '"]["' + node.second.value + '"])';
+                return addString('(context.model["' + node.first.value + '"]["' + node.second.value + '"]'
+                    + ' || context.locals["' + node.first.value + '"]["' + node.second.value + '"])');
             }
         },
         '=': function(node) {
@@ -197,9 +197,7 @@ function compile(treeData, context) {
             //+ 'var entryId = pageId;'
             + 'if(err) { return cb(err); }'
             // Set up defined blocks if we have them
-            + (blocks ? 
-                    'data.blocks = data.blocks || {extender: {}};' + blocks
-                : '')
+            + blocks
             + includes
             + contentBeforeOutdent
             // Render this page if we aren't passing control to another page

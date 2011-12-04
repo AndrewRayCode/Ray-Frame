@@ -90,7 +90,7 @@ exports.createServer = function(options, cb) {
                         for(var template in templater.rawCache) {
                             if(template.indexOf('admin') > -1) {
                                 res.write('<br /><br /><b>' + template + '</b><hr /><code>'
-                                    + templater.rawCache[template].funcString.toLocaleString()
+                                    + templater.rawCache[template].funcString.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[^t];/g, '$&<br />')
                                 + '</code>');
                             }
                         }
@@ -263,7 +263,11 @@ exports.setUpAccess = function(express) {
 
 // Serve a template from cache or get new version
 exports.serveTemplate = function(user, pageData, cb) {
-    var data = {};
+    var data = {
+        blocks: {
+            extender: {}
+        }
+    };
 
     data[pageData._id] = {
         model: pageData,
@@ -276,7 +280,7 @@ exports.serveTemplate = function(user, pageData, cb) {
     // function('cache', 'templater', 'user', 'pageId', 'data', 'cb');
     try {
         templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, function(err, txt) {
-            txt += '<br /><br />' + templater.rawCache[pageData.template + user.role].funcString.toLocaleString();
+            txt += '<br /><br />' + templater.rawCache[pageData.template + user.role].funcString.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
             cb(err, txt);
         });
     } catch (e) {
