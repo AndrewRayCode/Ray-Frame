@@ -65,11 +65,11 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
             // Query the list and get its items
             (function(listData, listName) {
 
-                var variables = knowns[pageId].variables;
+                var model = knowns[pageId].model;
 
                 // Set the parent's fieldname to an empty array
-                if(!variables[listData.field]) {
-                    variables = variables[listData.field] = [];
+                if(!model[listData.field]) {
+                    model = model[listData.field] = [];
                 }
 
                 cache.getList(listName, listData, pageId, function(err, rows) {
@@ -83,11 +83,11 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
 
                     for(var x = 0, row; row = rows[x++];) {
                         // Add the item to the list of knowns
-                        knowns[row._id] = {variables: row, locals: {}};
+                        knowns[row._id] = {model: row, locals: {}};
 
                         // Add the item to the parent's list field if there isn't an array of ids
                         if(!listData.userSort) {
-                            variables.push(row._id);
+                            model.push(row._id);
                         }
                     }
 

@@ -182,7 +182,7 @@ exports.resetDatabase = function(couch, callback) {
 
                             // root is special case. Let couch name other keys for page objects
                             {_id:'root', template:'index.html', title:'hello', welcome_msg: 'Velokmen!', url: utils.sanitizeUrl('/'),
-                                parents: []/*, pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']*/},
+                                parents: [], pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']},
                             {_id:'test.html', template:'test.html', title:'hello', welcome_msg: 'Test says Velokmen!', test_msg: 'Test message!',
                                 parents: []/*, pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']*/},
 
@@ -190,8 +190,8 @@ exports.resetDatabase = function(couch, callback) {
                             //{_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
 
                             // CRAP DATA
-                            //{_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')},
-                            //{_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
+                            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')},
+                            {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
 
                             //{_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogposta')},
                             //{_id:'ab2', template:'blog.html', title: 'other blog 2 (first)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostb')},
@@ -200,7 +200,7 @@ exports.resetDatabase = function(couch, callback) {
                             // TODO: This should be a core template, overwritable (there currently are no core templates)
                             {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}
                         ], function(err) {
-                            log.info('Welcome to Ray-Frame. Your home page has been automatically added to the database.');
+                            log.info('Database reset complete. The homepage (index.html) has been automatically added.');
                             callback(err);
                         });
                     });
@@ -278,14 +278,15 @@ exports.serveTemplate = function(user, pageData, cb) {
     //console.log(templater.templateCache[pageData.template + user.role].toLocaleString());
 
     // function('cache', 'templater', 'user', 'pageId', 'data', 'cb');
-    try {
-        templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, function(err, txt) {
+    templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, function(err, txt) {
+        if(err) {
+            cb(null, err.stack.replace(/\n/g, '<br />')
+                + '<hr />'
+                + templater.rawCache[pageData.template + user.role].funcString.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                + '<hr />');
+        } else {
             txt += '<br /><br />' + templater.rawCache[pageData.template + user.role].funcString.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
             cb(err, txt);
-        });
-    } catch (e) {
-        cb(null, templater.rawCache[pageData.template + user.role].funcString.toLocaleString()
-            + '<hr />'
-            + e.stack.replace(/\n/g, '<br />'));
-    }
+        }
+    });
 };

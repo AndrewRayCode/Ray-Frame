@@ -86,6 +86,7 @@ exports.readDir = function(start, callback) {
         var found = {dirs: [], files: []},
             total = 0,
             processed = 0;
+
         function isDir(abspath) {
             fs.stat(abspath, function(err, stat) {
                 if(stat.isDirectory()) {
@@ -213,5 +214,9 @@ exports.getViewName = function(instructions) {
 };
 
 exports.getListName = function(instructions) {
-    return instructions.listName || 'list.html';
+    return instructions.listName || 'master-list.html';
+};
+
+exports.getViewName = function(instructions) {
+    return 'type=' + (instructions.type || 'all') + (instructions.sort ? '-' + instructions.sort + '-' + instructions.field : '');
 };

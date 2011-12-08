@@ -130,7 +130,6 @@ function makeParser() {
         if(id == 'state' && startState == state) {
             error(token, 'Expected a state change, but instead got `' + token.value + '`');
         }
-
         
         token = Object.create(o);
         token.from  = t.from;
@@ -351,6 +350,8 @@ function makeParser() {
     symbol('endwhile');
     symbol('endif');
     symbol('in');
+    symbol('list');
+    symbol('masterlist');
 
     constant('true', true);
     constant('false', false);
@@ -534,6 +535,12 @@ function makeParser() {
     });
 
     stmt('template', function() {
+        return this;
+    });
+
+    stmt('list', function() {
+        metadata.isList = true;
+        this.arity = 'statement';
         return this;
     });
 

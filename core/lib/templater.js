@@ -10,7 +10,8 @@ var templater = module.exports,
     lexer = require('./lexer'),
     parser = require('./parser'),
     compiler = require('./compiler'),
-    themes_dir = '../../user/themes/';
+    themesDirectory = '../../user/themes/',
+    coreTemplateDir = '../static/';
 
 log.log_level = 'info';
 
@@ -54,10 +55,11 @@ exports.cacheTheme = function(theme, permissions, cb) {
     
     // No real reason to do this more than once after a theme is set
     templater.templateDir = templater.getTemplateDir();
+    templater.coreTemplateDir = templater.getCoreTemplateDir();
 
     templater.permissions = permissions;
 
-    templater.listAllThemeTemplates(function(err, files) {
+    templater.listThemeAndCoreTemplates(function(err, files) {
         if(err) {
             return cb(err);
         }
@@ -77,7 +79,7 @@ exports.cacheTheme = function(theme, permissions, cb) {
         while(l--) {
             if(files[l].indexOf('index.html') > -1 
                 || files[l].indexOf('test.html') > -1 
-                || files[l].indexOf('list.html') > -1 
+                || files[l].indexOf('master-list.html') > -1 
                 || files[l].indexOf('cow.html') > -1) {
                 process(files[l]);
             } else {
@@ -106,7 +108,8 @@ exports.cacheTemplate = function(filepath, options, cb) {
         return cb();
     }
 
-    templater.getTemplateSource(baseName, function(err, contents) {
+    fs.readFile(filepath, function(err, contents) {
+        contents = contents.toString();
         templater.processTemplateString(contents, options, function(err, data) {
             if(err && !hasErrored) {
                 hasErrored = true;
@@ -750,14 +753,18 @@ exports.processTemplateString = function(template, options, cb) {
     var tokens = lexer.tokenize(template);
     var treeData = parser.parse(tokens);
     var output = compiler.compile(treeData, {
+        // TODO, get permissions from option
         role: {name: 'admin'}
     });
 
-    cb(null, {
-        funcString: output.compiled,
-        parseData: {
-            funcString: output.compiled
-        }
+    templater.createViews(output.views, function() {
+        cb(null, {
+            funcString: output.compiled,
+            parseData: {
+                funcString: output.compiled,
+                isList: output.isList
+            }
+        });
     });
         // function('cache', 'templater', 'pageId', 'data', 'cb');
 
@@ -879,28 +886,54 @@ exports.getInstructions = function(plip) {
 
 // Recursively read all template files from the current theme //TODO: I feel like theme shouldn't be global
 exports.listAllThemeTemplates = function(cb) {
+    exports.listSpecificedTemplates(false, cb);
+};
+
+exports.listThemeAndCoreTemplates = function(cb) {
+    exports.listSpecificedTemplates(true, cb);
+};
+
+// Recursively read all template files from the current theme //TODO: I feel like theme shouldn't be global
+exports.listSpecificedTemplates = function(includeCore, cb) {
     // Save locations in cache
     if(templater.templatePaths) {
         return cb(null, templater.templatePaths);
     }
-    utils.readDir(templater.templateDir, function(err, data) {
+
+    var compile = function(err, data) {
         if(err) {
             return cb(err);
         }
-        var templates = [], f;
-        for(var x=0; x<data.files.length; x++) {
-            f = data.files[x];
+        var templates = [],
+            x = 0,
+            file;
+        for(; file = data.files[x++];) {
             // template must be .html files (not say .swp files which could be in that dir)
-            if((/\.html$/).test(f)) {
-                templates.push(f);
+            if((/\.html$/).test(file)) {
+                templates.push(file);
             }
         }
+
         templater.templatePaths = templates;
         cb(null, templates);
+    };
+
+    utils.readDir(templater.templateDir, function(err, data) {
+        if(includeCore) {
+            utils.readDir(templater.coreTemplateDir, function(err, coreData) {
+                data.files = data.files.concat(coreData.files);
+                data.dirs = data.dirs.concat(coreData.dirs);
+                compile(err, data);
+            });
+        } else {
+            compile(err, data);
+        }
     });
 };
 
-exports.getTemplateSource = function(name, cb) {
+// TODO: Nothing currently calls this, but might be useful for finding templates like 'list/bob.html' 
+// given only 'bob.html'
+exports.findTemplateAndGetSource = function(name, cb) {
     templater.listTemplates({include_all: true}, function(err, templates) {
         for(var x = 0, template; template = templates[x++];) {
             if(path.basename(template) == name) {
@@ -935,11 +968,37 @@ exports.listTemplates = function(options, cb) {
 };
 
 exports.getTemplateDir = function() {
-    return __dirname + '/' + themes_dir + templater.theme + '/templates/';
+    return path.normalize(__dirname + '/' + themesDirectory + templater.theme + '/templates/');
+};
+
+exports.getCoreTemplateDir = function() {
+    return path.normalize(__dirname + '/' + coreTemplateDir);
 };
 
 exports.getViewName = function(instructions) {
     return 'type=' + (instructions.type || 'all') + (instructions.sort ? '-' + instructions.sort + '-' + instructions.field : '');
+};
+
+templater.createViews = function(views, cb) {
+    var total = views.length,
+        processed = x = 0,
+        view, plip;
+
+    if(!total) {
+        return cb();
+    }
+
+    var exit = function() {
+        if(++processed == total) {
+            cb();
+        }
+    };
+
+    for(; view = views[x++];) {
+        plip = view.plipValues;
+        plip.field = view.plipName;
+        templater.createViewIfNull(plip, exit);
+    }
 };
 
 exports.createViewIfNull = function(instructions, cb) {

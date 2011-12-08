@@ -3,18 +3,15 @@ var log = require('simple-logger'),
     utils = require('./utils');
 
 function compile(treeData, context) {
-    var buffer = '',
-        predent = '',
-        outdent = '',
-        blocks = '',
-        includes = '',
+    var buffer = predent = outdent = blocks = list = includes = '',
         identifier = 'str',
         itemsToCache = {},
         viewsToCreate = [],
         hasExtends = treeData.metadata.hasExtendsStatement,
         hasBlocks = treeData.metadata.hasBlocks,
         hasIncludes = treeData.metadata.hasIncludeStatement,
-        renderFromThisContext = !hasExtends,
+        isList = treeData.metadata.isList,
+        renderFromThisContext = !hasExtends && !isList,
         iterator = 0;
 
     var visit = function(node) {
@@ -57,10 +54,20 @@ function compile(treeData, context) {
         'plip': function(node) {
             var output = '';
             if('list' in node.plipValues) {
-                viewsToCreate.push(node.plipValues);
+                viewsToCreate.push(node);
 
-                output += 'templater.templateCache["' + utils.getListName(node) + context.role.name + '"]'
-                    + '(cache, templater, user, "' + node.plipName + '", data, function(err, parsed) {'
+                var viewName = getViewName(node);
+
+                itemsToCache[viewName] = {
+                    field: node.plipName,
+                    userSort: node.plipValues.sort == 'user',
+                    list: true
+                };
+
+                output += 'data.listField = "' + node.plipName + '";'
+                    + 'templater.templateCache["' + utils.getListName(node) + context.role.name + '"]'
+                    + '(cache, templater, user, pageId, data, function(err, parsed) {'
+                    + 'if(err) { return cb(err); }'
                     + addString('parsed');
                 outdent += '});';
 
@@ -70,20 +77,30 @@ function compile(treeData, context) {
             return addString('context.model["' + node.plipName + '"]');
         },
         'block': function(node) {
-            blocks += 'data.blocks' + 
-                (hasExtends ? '.extender["' + node.first.value + '"] = data.blocks.extender["' + node.first.value + '"] || '
-                 : '["' + node.first.value + '"] = ')
-                + 'function(cb) {'
-                + 'var ' + identifier + ' = "";'
-                + visit(node.second)
-                + 'cb(null, ' + identifier + ');'
-                + '};';
+            var blockName = node.first.value;
+            if(isList && blockName == 'element') {
+                blocks += 'data.blocks.element = function(index, cb) {'
+                    + 'var ' + identifier + ' = "",'
+                    + '    context = data[docs[index]];'
+                    + visit(node.second)
+                    + 'cb(null, ' + identifier + ');'
+                    + '};';
+            } else {
+                blocks += 'data.blocks' + 
+                    (hasExtends ? '.extender["' + blockName + '"] = data.blocks.extender["' + blockName + '"] || '
+                    : '["' + blockName + '"] = ')
+                    + 'function(cb) {'
+                    + 'var ' + identifier + ' = "";'
+                    + visit(node.second)
+                    + 'cb(null, ' + identifier + ');'
+                    + '};';
 
-            // Render the block
-            if(renderFromThisContext) {
-                outdent += '});';
-                return '(data.blocks.extender["' + node.first.value + '"] || data.blocks["' + node.first.value + '"])(function(null, parsed) {'
-                    + addString('parsed');
+                // Render the block
+                if(renderFromThisContext) {
+                    outdent += '});';
+                    return '(data.blocks.extender["' + blockName + '"] || data.blocks["' + blockName + '"])(function(err, parsed) {'
+                        + addString('parsed');
+                }
             }
             return '';
         },
@@ -145,11 +162,16 @@ function compile(treeData, context) {
             return output;
         },
         '.': function(node) {
-            if(node.first.value == 'child') {
-                return 'KHHAAAANNNN';
+            var first = node.first.value,
+                second = node.second.value;
+
+            if(first == 'child') {
+                return addString('context.model["' + second + '"]');
+            } else if(first == 'loop') {
+                return addString('data.loop["' + second + '"]');
             } else {
-                return addString('(context.model["' + node.first.value + '"]["' + node.second.value + '"]'
-                    + ' || context.locals["' + node.first.value + '"]["' + node.second.value + '"])');
+                return addString('(context.model["' + first + '"]["' + second + '"]'
+                    + ' || context.locals["' + first + '"]["' + second + '"])');
             }
         },
         '=': function(node) {
@@ -161,6 +183,10 @@ function compile(treeData, context) {
         },
         'literal': function(node) {
             return 'literal';
+        },
+        'list': function(node) {
+            // Intentionally blank, list tags just set a flag in the metadata
+            return '';
         }
     };
 
@@ -186,7 +212,43 @@ function compile(treeData, context) {
         return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     };
 
+    var getViewName = function(node) {
+        return 'type=' + (node.plipValues.type || 'all') + (node.plipValues.sort ? '-' + node.plipValues.sort + '-' + node.plipName : '');
+    };
+
     var contentBeforeOutdent = visit(treeData.ast);
+
+    if(isList) {
+        list = // Total is all the list elements, plus start and end blocks
+            'var docs = data[pageId].model[data.listField],'
+            + '    total = docs.length + 2,'
+            + '    processed = x = 0,'
+            + '    finished = [],'
+            + '    start = end = "",'
+            + '    page;'
+            + 'var exit = function(index, str) {'
+                + 'str && (finished[index] = str);'
+                + 'if(++processed == total) {'
+                    + 'cb(null, start + finished.join("") + end);'
+                + '}'
+            + '};'
+            + 'data.loop = {total: total};'
+            + 'data.blocks.start(function(err, parsed) {'
+                + 'start = parsed;'
+                + 'exit();'
+            + '});'
+            + 'data.blocks.end(function(err, parsed) {'
+                + 'end = parsed;'
+                + 'exit();'
+            + '});'
+            + 'for(; page = docs[x++];) {'
+                + '(function(index) {'
+                    + 'data.blocks.element(index, function(err, parsed) {'
+                        + 'exit(index, parsed);'
+                    + '});'
+                + '})(x - 1);'
+            + '}';
+    }
 
     //return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
     var compiled =
@@ -196,19 +258,23 @@ function compile(treeData, context) {
             + 'var context = data[pageId];'
             //+ 'var entryId = pageId;'
             + 'if(err) { return cb(err); }'
+            + ' try {'
             // Set up defined blocks if we have them
             + blocks
             + includes
             + contentBeforeOutdent
             // Render this page if we aren't passing control to another page
-            + (renderFromThisContext ? 
+            + (list || (renderFromThisContext ? 
                     'if(!data.included) {'
                     + 'cb(null, ' + identifier + ');'
                     + '} else {'
                     + 'cb(null, data);'
                     + '}'
-                : '')
+                : ''))
             + outdent
+            + '} catch(e) {'
+            + 'cb(e);'
+            + '}'
         + '});';
 
     return {
