@@ -23,7 +23,8 @@ log.log_level = 'info';
 //var a = lexer.tokenize('{% bob = cheese %} moo');
 //var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
 //var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
-var a  = lexer.tokenize('{% extends \'a.html\' %}{% block \'list.start\' %}a{% endblock %}');
+//var a  = lexer.tokenize('{% extends \'a.html\' %}{% block \'list.start\' %}a{% endblock %}');
+var a  = lexer.tokenize('{{ child.title }} {{ child.butts }}');
 //var a  = lexer.tokenize('{% include \'a.html\' %} bark bark');
 //var a  = lexer.tokenize('{% block \'list.start\' %}'
         //+ '<ul>'
@@ -34,14 +35,15 @@ var a  = lexer.tokenize('{% extends \'a.html\' %}{% block \'list.start\' %}a{% e
     //+ '{% block \'list.end\' %}'
         //+'</ul>'
     //+ '{% endblock %}');
-var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' ('+a[t].value+')');}
+var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' `'+a[t].value+'`');}
 //log.info(tokens.join('\n'));
 var treeData = parser.parse(a);
-//log.error(treeData.ast);
+//log.error(treeData.ast, treeData.ast[0], treeData.ast[1], treeData.ast[2]);
 var c = compiler.compile(treeData, {
     role: {name: 'admin'}
 });
 //log.warn('------------- final code -------------\n',c.compiled);
+//a.b.c;
 //log.error(uglify(c.compiled));
 
 // Function code available on front end and back end

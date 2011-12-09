@@ -406,7 +406,6 @@ function makeParser() {
         token.arity = 'literal';
         this.second = token;
         this.arity = 'binary';
-        advance();
         return this;
     });
 
