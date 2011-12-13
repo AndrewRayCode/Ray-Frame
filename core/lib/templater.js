@@ -24,7 +24,7 @@ log.log_level = 'info';
 //var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
 //var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
 //var a  = lexer.tokenize('{% extends \'a.html\' %}{% block \'list.start\' %}a{% endblock %}');
-var a  = lexer.tokenize('{{ child.title }} {{ child.butts }}');
+var a  = lexer.tokenize('{{ whorse.barf.middle.last }}');
 //var a  = lexer.tokenize('{% include \'a.html\' %} bark bark');
 //var a  = lexer.tokenize('{% block \'list.start\' %}'
         //+ '<ul>'
@@ -38,7 +38,7 @@ var a  = lexer.tokenize('{{ child.title }} {{ child.butts }}');
 var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' `'+a[t].value+'`');}
 //log.info(tokens.join('\n'));
 var treeData = parser.parse(a);
-//log.error(treeData.ast, treeData.ast[0], treeData.ast[1], treeData.ast[2]);
+//log.error(treeData.ast[1]);
 var c = compiler.compile(treeData, {
     role: {name: 'admin'}
 });
@@ -120,30 +120,31 @@ exports.cacheTemplate = function(filepath, options, cb) {
                 return;
             }
 
-            //log.error(cachedName);
-            //if(cachedName == 'index.htmladmin') {
-                //var p = data.funcString.split(';');
-                //for(var x=0; x < p.length; x++){
-                    //log.error(p[x]+';');
-                //}
-            //}
-
             // Save the funciton string in our cache
-            templater.templateCache[cachedName] = templater.mangleToFunction(data.funcString);
+            templater.templateCache[cachedName] = templater.mangleToFunction(data.compiled, filepath);
 
             // Also save the raw data in case we need to do anything else tricky with this template, like
             // use it as a wrapper
-            cb(null, templater.rawCache[cachedName] = data.parseData);
+            cb(null, (templater.rawCache[cachedName] = data));
         });
     });
 };
 
-exports.mangleToFunction = function(funcStr) {
+exports.mangleToFunction = function(funcStr, filepath) {
     try {
         funcStr = uglify(funcStr);
-    } catch(e) {
-        log.error(funcStr);
-        throw new Error('Template function string could not be parsed, syntax error found by uglify-js. This is bad.');
+    } catch(err) {
+        log.warn('Error parsing "' + filepath + '"');
+        funcStr = 'cb(null, "Template function string could not be parsed, syntax error found by uglify-js. This is bad.'
+            + '<br />' + err.stack.replace(/\n/g, '<br />')
+            + '<hr />' 
+            + funcStr
+                .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/\n|\r/g, '\\n')
+                .replace(/([^\\])"("?)/g, function(match, group1, group2) {
+                    return group1 + '\\"' + (group2 ? '\\"' : '');
+                })
+            + '");';
     }
     return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
 };
@@ -744,58 +745,15 @@ exports.parser = function(options) {
 // Take raw template string from the filesystem and feed it to the parser. Store the parser's output in a meaningful way
 // so that the data can be used in other areas
 exports.processTemplateString = function(template, options, cb) {
-    var parseOptions = {
-        identifier: 'str',
-        role: options.permission
-    };
-    if(options.preState) {
-        parseOptions.state = options.preState;
-    }
-
     var tokens = lexer.tokenize(template);
     var treeData = parser.parse(tokens);
     var output = compiler.compile(treeData, {
-        // TODO, get permissions from option
-        role: {name: 'admin'}
+        role: options.permission
     });
 
-    templater.createViews(output.views, function() {
-        cb(null, {
-            funcString: output.compiled,
-            parseData: {
-                funcString: output.compiled,
-                isList: output.isList
-            }
-        });
+    templater.createViews(output.views, function(err) {
+        cb(err, output);
     });
-        // function('cache', 'templater', 'pageId', 'data', 'cb');
-
-        //var processedOutput = 
-            //'var ' + parser.identifier + ' = "",'
-            //+ 'found = ' + sys.inspect(parseData.itemsToCache) + ';'
-            //+ parseData.declarations
-            //+ 'cache.fillIn(data, found, pageId, function(err) {'
-                //+ 'var entryId = pageId;'
-                //+ 'if(err) { return cb(err); }'
-                //+ parseData.beforeTemplate
-                //+ parser.getBuffer('output')
-                //+ parseData.afterTemplate
-                //+ 'cb(null, ' + parser.identifier + ');'
-            //+ '});';
-
-        //cb(null, {
-            //funcString: processedOutput,
-            //Store our raw data in case something else needs to tear it apart
-            //parseData: {
-                //beforeTemplate: parseData.beforeTemplate,
-                //afterTemplate: parseData.afterTemplate,
-                //itemsToCache: parseData.itemsToCache,
-                //declarations: parseData.declarations,
-                //identifier: parser.identifier,
-                //buffers: parser.getBuffers()
-            //}
-        //});
-    //});
 };
 
 exports.addNamespace = function(namespace) {

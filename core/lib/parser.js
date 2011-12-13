@@ -2,9 +2,7 @@ var log = require('simple-logger');
 
 // http://javascript.crockford.com/tdop/index.html
 function error(token, message) {
-    token.name = 'SyntaxError';
-    token.message = message;
-    throw token;
+    throw new Error(message);
 }
 
 function makeParser() {
@@ -85,9 +83,9 @@ function makeParser() {
         if(id && token.id !== id && id != 'state') {
             //if((id == ';' && ((state == 'control' && token.id != '%}') || (state == 'plip' && token.id != '}}')))
                     //|| (id != ';')) {
-                if(id == '(end)' && token.id != 'template') {
-                    error(token, 'Expected `' + id + '`, but instead got `' + token.id + '` (' + token.value + ')');
-                }
+            if(id == '(end)' && token.id != 'template') {
+                error(token, 'Expected `' + id + '`, but instead got `' + token.id + '` (' + token.value + ')');
+            }
             //}
         }
         if(token_nr >= tokens.length) {
@@ -151,7 +149,7 @@ function makeParser() {
             plip = Object.create(symbol_table['(literal)']);
             plip.plipName = testToken.value;
             plip.plipValues = {};
-            plip.arity = 'plip';
+            plip.arity = 'name';
 
             while(token.value == ':') {
                 advance();
@@ -200,7 +198,6 @@ function makeParser() {
         }
         v = expression(0);
 
-        // TODO: start here
         advance('state');
         return v;
     };
@@ -406,6 +403,7 @@ function makeParser() {
         token.arity = 'literal';
         this.second = token;
         this.arity = 'binary';
+        advance();
         return this;
     });
 

@@ -87,10 +87,11 @@ exports.createServer = function(options, cb) {
                         log.warn('Non-existant page was requested (404): `'+dbPath+'`');
                         res.writeHead(404, {'Content-Type': 'text/html'});
 
+                        // Temporary: log all the compiled templates in the system
                         for(var template in templater.rawCache) {
                             if(template.indexOf('admin') > -1) {
                                 res.write('<br /><br /><b>' + template + '</b><hr /><code>'
-                                    + templater.rawCache[template].funcString.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[^t];/g, '$&<br />')
+                                    + templater.rawCache[template].compiled.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[^t];/g, '$&<br />')
                                 + '</code>');
                             }
                         }
@@ -182,7 +183,7 @@ exports.resetDatabase = function(couch, callback) {
 
                             // root is special case. Let couch name other keys for page objects
                             {_id:'root', template:'index.html', title:'hello', welcome_msg: 'Velokmen!', url: utils.sanitizeUrl('/'),
-                                parents: [], pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']},
+                                parents: [], blogs: ['ab2', 'ab3', 'ab1']},
                             {_id:'test.html', template:'test.html', title:'hello', welcome_msg: 'Test says Velokmen!', test_msg: 'Test message!',
                                 parents: []/*, pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']*/},
 
@@ -282,10 +283,9 @@ exports.serveTemplate = function(user, pageData, cb) {
         if(err) {
             cb(null, err.stack.replace(/\n/g, '<br />')
                 + '<hr />'
-                + templater.rawCache[pageData.template + user.role].funcString.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                + templater.rawCache[pageData.template + user.role].compiled.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;')
                 + '<hr />');
         } else {
-            txt += '<br /><br />' + templater.rawCache[pageData.template + user.role].funcString.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
             cb(err, txt);
         }
     });

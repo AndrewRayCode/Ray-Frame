@@ -12,11 +12,13 @@ function compile(treeData, context) {
         hasIncludes = treeData.metadata.hasIncludeStatement,
         isList = treeData.metadata.isList,
         renderFromThisContext = !hasExtends && !isList,
-        iterator = 0;
+        iterator = 0,
+        visiting = {};
 
-    var visit = function(node) {
+    var visit = function(node, noAncestor) {
         var vistFn,
-            visitKey;
+            visitKey,
+            visited;
 
         if(node.length) {
             return visitors.nodeList(node);
@@ -25,6 +27,12 @@ function compile(treeData, context) {
         visitKey = visitors[node.value] ? node.value : node.arity;
         
         if((visitFn = visitors[visitKey])) {
+            if(!noAncestor) {
+                node.ancestor = visiting;
+            } else {
+                node.ancestor = {};
+            }
+            visiting = node;
             return visitFn(node);
         } else {
             log.warn('Warning: Node compiler not implemented: ' + visitKey, ': ', node.value + ' (' + node.arity + ')');
@@ -50,31 +58,6 @@ function compile(treeData, context) {
             }
 
             return output;
-        },
-        'plip': function(node) {
-            var output = '';
-            if('list' in node.plipValues) {
-                viewsToCreate.push(node);
-
-                var viewName = getViewName(node);
-
-                itemsToCache[viewName] = {
-                    field: node.plipName,
-                    userSort: node.plipValues.sort == 'user',
-                    list: true
-                };
-
-                output += 'data.listField = "' + node.plipName + '";'
-                    + 'templater.templateCache["' + utils.getListName(node) + context.role.name + '"]'
-                    + '(cache, templater, user, pageId, data, function(err, parsed) {'
-                    + 'if(err) { return cb(err); }'
-                    + addString('parsed');
-                outdent += '});';
-
-                return output;
-            }
-
-            return addString('context.model["' + node.plipName + '"]');
         },
         'block': function(node) {
             var blockName = node.first.value;
@@ -157,29 +140,64 @@ function compile(treeData, context) {
                 output = '';
 
             for(; node = list[i++];) {
-                output += visit(node);
+                output += visit(node, true);
             }
             return output;
         },
         '.': function(node) {
-            var first = node.first.value,
-                second = node.second.value;
+            var first,
+                firstValue = node.first.value,
+                secondValue = node.second.value,
+                outptut = '';
 
-            if(first == 'child') {
-                return addString('context.model["' + second + '"]');
-            } else if(first == 'loop') {
-                return addString('data.loop["' + second + '"]');
+            if(node.first.arity == 'name') {
+                if(firstValue == 'child') {
+                    output = 'context.model["' + secondValue + '"]';
+                } else if(firstValue == 'loop') {
+                    output = 'data.loop["' + secondValue  + '"]';
+                } else {
+                    output = 'context.model["' + firstValue + '"]["' + secondValue + '"]';
+                }
             } else {
-                return addString('(context.model["' + first + '"]["' + second + '"]'
-                    + ' || context.locals["' + first + '"]["' + second + '"])');
+                output = visit(node.first) + '["' + secondValue + '"]';
             }
+
+            if(node.ancestor.arity == 'binary') {
+                return output;
+            } else {
+                return addString(output);
+            }
+
         },
         '=': function(node) {
             return visit(node.first) + '=' + visit(node.second) + ';';
         },
         'name': function(node) {
-            return addString('(context.model["' + node.value + '"]'
-                + ' || context.locals["' + node.value + '"])');
+            var output = '',
+                ref;
+
+            if(node.plipValues && ('list' in node.plipValues)) {
+                viewsToCreate.push(node);
+
+                var viewName = getViewName(node);
+
+                itemsToCache[viewName] = {
+                    field: node.plipName,
+                    userSort: node.plipValues.sort == 'user',
+                    list: true
+                };
+
+                output += 'data.listField = "' + node.plipName + '";'
+                    + 'templater.templateCache["' + utils.getListName(node) + context.role.name + '"]'
+                    + '(cache, templater, user, pageId, data, function(err, parsed) {'
+                    + 'if(err) { return cb(err); }'
+                    + addString('parsed');
+                outdent += '});';
+
+                return output;
+            }
+
+            return addString('context.model["' + node.value + '"]');
         },
         'literal': function(node) {
             return 'literal';
