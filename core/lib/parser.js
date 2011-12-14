@@ -80,23 +80,34 @@ function makeParser() {
     var advance = function(id) {
         var a, o, t, v,
             startState = state;
+
         if(id && token.id !== id && id != 'state') {
-            //if((id == ';' && ((state == 'control' && token.id != '%}') || (state == 'plip' && token.id != '}}')))
-                    //|| (id != ';')) {
             if(id == '(end)' && token.id != 'template') {
-                error(token, 'Expected `' + id + '`, but instead got `' + token.id + '` (' + token.value + ')');
+                error(token, 'Expected end of file, but instead got `' + token.id + '` (' + token.value + ')');
             }
-            //}
         }
-        if(token_nr >= tokens.length) {
-            token = symbol_table['(end)'];
-            return;
-        }
-        t = tokens[token_nr];
-        token_nr += 1;
-        v = t.value;
-        a = t.type;
-        if(state == 'control' || state == 'plip') {
+        
+        // Look at the next token from the lexer. If it triggers a state change, like a '%}' or '{{',
+        // record the new state and read the next token. Pretend like nothing happened.
+        do {
+            if(a) {
+                if(state == 'template') {
+                    state = a;
+                } else {
+                    state = 'template';
+                }
+            }
+            if(token_nr >= tokens.length) {
+                token = symbol_table['(end)'];
+                return;
+            }
+            t = tokens[token_nr];
+            token_nr += 1;
+            v = t.value;
+            a = t.type;
+        } while (a == 'controller' || a == 'plip');
+
+        if(state == 'controller' || state == 'plip') {
             if(a === 'name') {
                 o = scope.find(v);
             } else if(a === 'operator') {
@@ -107,26 +118,11 @@ function makeParser() {
             } else if(a === 'string' || a ===  'number') {
                 o = symbol_table['(literal)'];
                 a = 'literal';
-            } else if(a == 'controller' || a == 'plip') {
-                state = 'template';
-                return advance();
             } else {
                 error(t, 'Unexpected token: `' + t.value + '`');
             }
         } else if(state == 'template') {
-            if(a == 'controller') {
-                state = 'control';
-                return advance();
-            } else if(a == 'plip') {
-                state = 'plip';
-                return advance();
-            } else {
-                o = symbol_table[a];
-            }
-        }
-
-        if(id == 'state' && startState == state) {
-            error(token, 'Expected a state change, but instead got `' + token.value + '`');
+            o = symbol_table[a];
         }
         
         token = Object.create(o);
@@ -138,8 +134,8 @@ function makeParser() {
     };
 
     var expression = function(rbp) {
-        var left, plipPiece, expressionToken,
-            testToken = token;
+        var testToken = token,
+            left, plipPiece, expressionToken;
 
         advance();
 
@@ -196,10 +192,9 @@ function makeParser() {
             scope.reserve(n);
             return n.std();
         }
-        v = expression(0);
-
-        advance('state');
-        return v;
+        // Crockford does advance(';') here, and I tried advance('state'), but advance already exists on a state
+        // change, so it is implied
+        return expression(0);
     };
 
     var statements = function() {
@@ -594,20 +589,20 @@ function makeParser() {
         this.first = expression(0); // statements(); // ?
         this.arity = 'statement';
 
-        next = statements('endif', 'else');
+        next = statements();
         this.second = next;
 
         if(token.value == 'else') {
             advance();
             this.third = statement();
-        } else if(token.value != 'endif') {
-            //throw new Error('Expected `endif` or `else`, but instead got `' + token.value + '`');
-            error(token, 'Expected `endif` or `else`, but instead got `' + token.value + '`');
-        } else {
+        } else if(token.value == 'endif') {
             // Without setting this explicitly, this.third is becoming a circular reference to
             // the same `else` node. Wtf?
             this.third = null;
             advance('endif');
+        } else {
+            //throw new Error('Expected `endif` or `else`, but instead got `' + token.value + '`');
+            error(token, 'Expected `endif` or `else`, but instead got `' + token.value + '`');
         }
 
         return this;

@@ -17,14 +17,14 @@ log.log_level = 'info';
 
 //var a = lexer.tokenize('{% for oink in bob %}FUCK{% endfor %}');
 //var a = lexer.tokenize('{% if oink || moo %}FUCK{% else if poop %}{% endif %}');
-//var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
+//var a = lexer.tokenize('{% if oink %} firstif {% else if poop %} secondif {% endif %} template afterwards');
 //var a = lexer.tokenize('{% if oink %} PPP {% endif %} balls');
 //var a = lexer.tokenize('{% if oink %} PPP {% endif %}');
-//var a = lexer.tokenize('{% bob = cheese %} moo');
+var a = lexer.tokenize('{% bob = cheese %} moo');
 //var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
 //var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
 //var a  = lexer.tokenize('{% extends \'a.html\' %}{% block \'list.start\' %}a{% endblock %}');
-var a  = lexer.tokenize('{{ whorse.barf.middle.last }}');
+//var a  = lexer.tokenize('{{ whorse }} {{ moo }}');
 //var a  = lexer.tokenize('{% include \'a.html\' %} bark bark');
 //var a  = lexer.tokenize('{% block \'list.start\' %}'
         //+ '<ul>'
