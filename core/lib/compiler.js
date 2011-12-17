@@ -11,6 +11,7 @@ function compile(treeData, context) {
         hasBlocks = treeData.metadata.hasBlocks,
         hasIncludes = treeData.metadata.hasIncludeStatement,
         isList = treeData.metadata.isList,
+        isMasterList = isList && context.fileName == 'master-list.html',
         renderFromThisContext = !hasExtends && !isList,
         iterator = 0,
         visiting = {};
@@ -62,7 +63,10 @@ function compile(treeData, context) {
         'block': function(node) {
             var blockName = node.first.value;
             if(isList && blockName == 'element') {
-                blocks += 'data.blocks.element = function(index, cb) {'
+                blocks += 'data.blocks.element = '
+                    + (isMasterList ? 'data.blocks.extender.element || data.blocks.element || '
+                            : '') 
+                    + 'function(docs, index, cb) {'
                     + 'var ' + identifier + ' = "",'
                     + '    context = data[docs[index]];'
                     + visit(node.second)
@@ -102,13 +106,26 @@ function compile(treeData, context) {
                 + 'data.included = false;';
             return '';
         },
-        'extends': function(node){
+        'extends': function(node) {
             var id = node.first.value;
             itemsToCache[id] = false;
 
             // Render the parent with our blocks
             outdent = 'templater.templateCache["' +  id + context.role.name + '"]'
                 + '(cache, templater, user, "' + id + '", data, function(err, parsed) {'
+                + 'cb(err, parsed)'
+                + '});'
+                + outdent;
+
+            return '';
+        },
+        'localextends': function(node) {
+            var id = node.first.value;
+            itemsToCache[id] = false;
+
+            // Render the parent with our blocks
+            outdent = 'templater.templateCache["' +  id + context.role.name + '"]'
+                + '(cache, templater, user, pageId, data, function(err, parsed) {'
                 + 'cb(err, parsed)'
                 + '});'
                 + outdent;
@@ -188,7 +205,7 @@ function compile(treeData, context) {
                 };
 
                 output += 'data.listField = "' + node.plipName + '";'
-                    + 'templater.templateCache["' + utils.getListName(node) + context.role.name + '"]'
+                    + 'templater.templateCache["' + utils.getListName(node.plipValues) + context.role.name + '"]'
                     + '(cache, templater, user, pageId, data, function(err, parsed) {'
                     + 'if(err) { return cb(err); }'
                     + addString('parsed');
@@ -203,6 +220,13 @@ function compile(treeData, context) {
             return 'literal';
         },
         'list': function(node) {
+            if(!isMasterList) {
+                visitors.localextends({
+                    first: {
+                        value: 'master-list.html'
+                    }
+                });
+            }
             // Intentionally blank, list tags just set a flag in the metadata
             return '';
         }
@@ -236,7 +260,7 @@ function compile(treeData, context) {
 
     var contentBeforeOutdent = visit(treeData.ast);
 
-    if(isList) {
+    if(isMasterList) {
         list = // Total is all the list elements, plus start and end blocks
             'var docs = data[pageId].model[data.listField],'
             + '    total = docs.length + 2,'
@@ -261,7 +285,7 @@ function compile(treeData, context) {
             + '});'
             + 'for(; page = docs[x++];) {'
                 + '(function(index) {'
-                    + 'data.blocks.element(index, function(err, parsed) {'
+                    + 'data.blocks.element(docs, index, function(err, parsed) {'
                         + 'exit(index, parsed);'
                     + '});'
                 + '})(x - 1);'

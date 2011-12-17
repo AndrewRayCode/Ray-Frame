@@ -50,7 +50,6 @@ function tokenize(input) {
         i += (0 in arguments ? jump : 1);
         c = input.charAt(i);
         setPeek();
-        return c;
     };
 
     var previousToken = function() {
@@ -291,7 +290,7 @@ function tokenize(input) {
                 // single-character operator
                 } else {
                     tokens.push(make('operator', c));
-                    c = advance();
+                    advance();
                 }
             }
         }

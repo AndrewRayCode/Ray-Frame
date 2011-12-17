@@ -343,7 +343,8 @@ function makeParser() {
     symbol('endif');
     symbol('in');
     symbol('list');
-    symbol('masterlist');
+    symbol('extends');
+    symbol('local');
 
     constant('true', true);
     constant('false', false);
@@ -538,6 +539,10 @@ function makeParser() {
 
     stmt('extends', function() {
         metadata.hasExtendsStatement = true;
+        if(token.value == 'local') {
+            this.value = 'localextends';
+            advance();
+        }
         this.first = expression(0);
         this.arity = 'statement';
         return this;

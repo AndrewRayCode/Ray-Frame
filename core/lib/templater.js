@@ -15,36 +15,38 @@ var templater = module.exports,
 
 log.log_level = 'info';
 
-//var a = lexer.tokenize('{% for oink in bob %}FUCK{% endfor %}');
-//var a = lexer.tokenize('{% if oink || moo %}FUCK{% else if poop %}{% endif %}');
-//var a = lexer.tokenize('{% if oink %} firstif {% else if poop %} secondif {% endif %} template afterwards');
-//var a = lexer.tokenize('{% if oink %} PPP {% endif %} balls');
-//var a = lexer.tokenize('{% if oink %} PPP {% endif %}');
-var a = lexer.tokenize('{% bob = cheese %} moo');
-//var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
-//var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
-//var a  = lexer.tokenize('{% extends \'a.html\' %}{% block \'list.start\' %}a{% endblock %}');
-//var a  = lexer.tokenize('{{ whorse }} {{ moo }}');
-//var a  = lexer.tokenize('{% include \'a.html\' %} bark bark');
-//var a  = lexer.tokenize('{% block \'list.start\' %}'
-        //+ '<ul>'
-    //+ '{% endblock %}'
-    //+ '{% block \'list.item\' %}'
-        //+'<li>{{ child }}</li>'
-    //+ '{% endblock %}'
-    //+ '{% block \'list.end\' %}'
-        //+'</ul>'
-    //+ '{% endblock %}');
-var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' `'+a[t].value+'`');}
-//log.info(tokens.join('\n'));
-var treeData = parser.parse(a);
-//log.error(treeData.ast[1]);
-var c = compiler.compile(treeData, {
-    role: {name: 'admin'}
-});
-//log.warn('------------- final code -------------\n',c.compiled);
-//a.b.c;
-//log.error(uglify(c.compiled));
+if(0) {
+    //var a = lexer.tokenize('{% for oink in bob %}FUCK{% endfor %}');
+    //var a = lexer.tokenize('{% if oink || moo %}FUCK{% else if poop %}{% endif %}');
+    //var a = lexer.tokenize('{% if oink %} firstif {% else if poop %} secondif {% endif %} template afterwards');
+    //var a = lexer.tokenize('{% if oink %} PPP {% endif %} balls');
+    //var a = lexer.tokenize('{% if oink %} PPP {% endif %}');
+    //var a = lexer.tokenize('{% bob = cheese %} moo');
+    //var a = lexer.tokenize('{% if oink %}FUCK{% else if poop %}{% endif %}');
+    //var a  = lexer.tokenize('{% block \'list.start\' %}a{% endblock %}');
+    //var a  = lexer.tokenize('{% extends \'a.html\' %}{% block \'list.start\' %}a{% endblock %}');
+    //var a  = lexer.tokenize('{{ whorse }} {{ moo }}');
+    //var a  = lexer.tokenize('{% include \'a.html\' %} bark bark');
+    //var a  = lexer.tokenize('{% block \'list.start\' %}'
+            //+ '<ul>'
+        //+ '{% endblock %}'
+        //+ '{% block \'list.item\' %}'
+            //+'<li>{{ child }}</li>'
+        //+ '{% endblock %}'
+        //+ '{% block \'list.end\' %}'
+            //+'</ul>'
+        //+ '{% endblock %}');
+    var a = lexer.tokenize('{% extends local "a.html" %}');
+    var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' `'+a[t].value+'`');}
+    //log.info(tokens.join('\n'));
+    var treeData = parser.parse(a);
+    log.error(treeData.ast[1]);
+    var c = compiler.compile(treeData, {
+        role: {name: 'admin'}
+    });
+    log.warn('------------- final code -------------\n',c.compiled);
+    a.b.c;
+}
 
 // Function code available on front end and back end
 exports.transientFunctions = '';
@@ -82,6 +84,7 @@ exports.cacheTheme = function(theme, permissions, cb) {
             if(files[l].indexOf('index.html') > -1 
                 || files[l].indexOf('test.html') > -1 
                 || files[l].indexOf('master-list.html') > -1 
+                || files[l].indexOf('link.html') > -1
                 || files[l].indexOf('cow.html') > -1) {
                 process(files[l]);
             } else {
@@ -112,7 +115,7 @@ exports.cacheTemplate = function(filepath, options, cb) {
 
     fs.readFile(filepath, function(err, contents) {
         contents = contents.toString();
-        templater.processTemplateString(contents, options, function(err, data) {
+        templater.processTemplateString(baseName, contents, options, function(err, data) {
             if(err && !hasErrored) {
                 hasErrored = true;
                 return cb(new Error('Error processing `' + filepath + '`: ' + err.message));
@@ -744,11 +747,12 @@ exports.parser = function(options) {
 
 // Take raw template string from the filesystem and feed it to the parser. Store the parser's output in a meaningful way
 // so that the data can be used in other areas
-exports.processTemplateString = function(template, options, cb) {
+exports.processTemplateString = function(fileName, template, options, cb) {
     var tokens = lexer.tokenize(template);
     var treeData = parser.parse(tokens);
     var output = compiler.compile(treeData, {
-        role: options.permission
+        role: options.permission,
+        fileName: fileName
     });
 
     templater.createViews(output.views, function(err) {

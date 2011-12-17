@@ -214,7 +214,7 @@ exports.getViewName = function(instructions) {
 };
 
 exports.getListName = function(instructions) {
-    return instructions.listName || 'master-list.html';
+    return instructions.view || instructions.listName || 'master-list.html';
 };
 
 exports.getViewName = function(instructions) {
