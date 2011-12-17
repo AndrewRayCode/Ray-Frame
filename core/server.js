@@ -191,7 +191,7 @@ exports.resetDatabase = function(couch, callback) {
                             //{_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
 
                             // CRAP DATA
-                            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost')},
+                            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost'), body: 'threenis'},
                             {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
 
                             //{_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogposta')},

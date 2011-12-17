@@ -36,7 +36,7 @@ function compile(treeData, context) {
             visiting = node;
             return visitFn(node);
         } else {
-            log.warn('Warning: Node compiler not implemented: ' + visitKey, ': ', node.value + ' (' + node.arity + ')');
+            log.warn('Warning on ' + context.fileName + ': Node compiler not implemented: ' + visitKey, ': ', node.value + ' (' + node.arity + ')');
             return '';
         }
     };
