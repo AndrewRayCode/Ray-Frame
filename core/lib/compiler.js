@@ -28,15 +28,15 @@ function compile(treeData, context) {
         visitKey = visitors[node.value] ? node.value : node.arity;
         
         if((visitFn = visitors[visitKey])) {
-            if(!noAncestor) {
-                node.ancestor = visiting;
-            } else {
+            if(noAncestor) {
                 node.ancestor = {};
+            } else {
+                node.ancestor = visiting;
             }
             visiting = node;
             return visitFn(node);
         } else {
-            log.warn('Warning on ' + context.fileName + ': Node compiler not implemented: ' + visitKey, ': ', node.value + ' (' + node.arity + ')');
+            log.warn('Warning on ' + context.fileName + ': Node compiler not implemented: ' + visitKey, ': `'+ node.value + '` (' + node.arity + ')');
             return '';
         }
     };
@@ -59,6 +59,20 @@ function compile(treeData, context) {
             }
 
             return output;
+        },
+        '(': function(node) {
+            var parameters = [],
+                parameter,
+                x = 0;
+            if(node.second instanceof Array) {
+                for(; parameter = node.second[x++];) {
+                    parameters.push(visit(parameter));
+                }
+                parameters = parameters.join(',');
+            } else {
+                parameters = visit(node.second);
+            }
+            return 'templater.functions["' + node.first.value + '"](' + parameters + ')';
         },
         '==': function(node) {
             return visit(node.first) + '==' + visit(node.second);
