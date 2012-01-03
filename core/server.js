@@ -272,7 +272,7 @@ exports.serveTemplate = function(user, pageData, cb) {
 
     data[pageData._id] = {
         model: pageData,
-        locals: {}
+        locals: {a:3}
     };
 
     //log.error('serving ',pageData.template + user.role);

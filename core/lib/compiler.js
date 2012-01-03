@@ -63,6 +63,12 @@ function compile(treeData, context) {
         '==': function(node) {
             return visit(node.first) + '==' + visit(node.second);
         },
+        '||': function(node) {
+            return visit(node.first) + '||' + visit(node.second);
+        },
+        '&&': function(node) {
+            return visit(node.first) + '&&' + visit(node.second);
+        },
         'block': function(node) {
             var blockName = node.first.value;
             if(isList && blockName == 'element') {
@@ -175,6 +181,8 @@ function compile(treeData, context) {
                     output = 'context.model["' + secondValue + '"]';
                 } else if(firstValue == 'loop') {
                     output = 'data.loop["' + secondValue  + '"]';
+                } else if(firstValue == 'locals') {
+                    output = 'data[pageId].locals["' + secondValue  + '"]';
                 } else {
                     output = 'context.model["' + firstValue + '"]["' + secondValue + '"]';
                 }
