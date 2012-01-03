@@ -36,7 +36,8 @@ if(0) {
         //+ '{% block \'list.end\' %}'
             //+'</ul>'
         //+ '{% endblock %}');
-    var a = lexer.tokenize('{% extends local "a.html" %}');
+    //var a = lexer.tokenize('{% extends local "a.html" %}');
+    var a = lexer.tokenize('{{ body:renderFunc=ellip }}');
     var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' `'+a[t].value+'`');}
     //log.info(tokens.join('\n'));
     var treeData = parser.parse(a);
@@ -133,15 +134,16 @@ exports.cacheTemplate = function(filepath, options, cb) {
     });
 };
 
-exports.mangleToFunction = function(funcStr, filepath) {
+exports.mangleToFunction = function(inputFunction, filepath) {
+    var outputFunction;
     try {
-        funcStr = uglify(funcStr);
+        outputFunction = uglify(inputFunction);
     } catch(err) {
-        log.warn('Error parsing "' + filepath + '"');
-        funcStr = 'cb(null, "Template function string could not be parsed, syntax error found by uglify-js. This is bad.'
+        log.warn('Error parsing "' + filepath + '"' + err.message);
+        outputFunction = 'cb(null, "Template function string could not be parsed, syntax error found by uglify-js. This is bad.'
             + '<br />' + err.stack.replace(/\n/g, '<br />')
             + '<hr />' 
-            + funcStr
+            + inputFunction
                 .replace(/</g, '&lt;').replace(/>/g, '&gt;')
                 .replace(/\n|\r/g, '\\n')
                 .replace(/([^\\])"("?)/g, function(match, group1, group2) {
@@ -149,7 +151,7 @@ exports.mangleToFunction = function(funcStr, filepath) {
                 })
             + '");';
     }
-    return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
+    return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', outputFunction);
 };
 
 // Template tag handlers. At some point this needs to be moved to its own file, or something, and users need to be able

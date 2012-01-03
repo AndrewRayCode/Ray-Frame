@@ -130,6 +130,7 @@ function makeParser() {
         token.to    = t.to;
         token.value = v;
         token.arity = a;
+        token.state = state;
         return token;
     };
 
@@ -146,6 +147,7 @@ function makeParser() {
             plip.plipName = testToken.value;
             plip.plipValues = {};
             plip.arity = 'name';
+            plip.state = 'plip';
 
             while(token.value == ':') {
                 advance();
@@ -587,6 +589,30 @@ function makeParser() {
         }
         advance(';');
         return a.length === 0 ? null : a.length === 1 ? a[0] : a;
+    });
+
+    stmt('asyncif', function() {
+        var next;
+        this.first = expression(0); // statements(); // ?
+        this.arity = 'statement';
+
+        next = statements();
+        this.second = next;
+
+        if(token.value == 'else') {
+            advance();
+            this.third = statement();
+        } else if(token.value == 'endif') {
+            // Without setting this explicitly, this.third is becoming a circular reference to
+            // the same `else` node. Wtf?
+            this.third = null;
+            advance('endif');
+        } else {
+            //throw new Error('Expected `endif` or `else`, but instead got `' + token.value + '`');
+            error(token, 'Expected `endif` or `else`, but instead got `' + token.value + '`');
+        }
+
+        return this;
     });
 
     stmt('if', function() {

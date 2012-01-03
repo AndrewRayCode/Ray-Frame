@@ -55,10 +55,13 @@ function compile(treeData, context) {
             if(node.third) {
                 output += '} else ' + visit(node.third);
             } else {
-                outdent += '}';
+                output += '}';
             }
 
             return output;
+        },
+        '==': function(node) {
+            return visit(node.first) + '==' + visit(node.second);
         },
         'block': function(node) {
             var blockName = node.first.value;
@@ -190,7 +193,7 @@ function compile(treeData, context) {
             return visit(node.first) + '=' + visit(node.second) + ';';
         },
         'name': function(node) {
-            var output = '',
+            var output,
                 ref;
 
             if(node.plipValues && ('list' in node.plipValues)) {
@@ -204,7 +207,7 @@ function compile(treeData, context) {
                     list: true
                 };
 
-                output += 'data.listField = "' + node.plipName + '";'
+                output = 'data.listField = "' + node.plipName + '";'
                     + 'templater.templateCache["' + utils.getListName(node.plipValues) + context.role.name + '"]'
                     + '(cache, templater, user, pageId, data, function(err, parsed) {'
                     + 'if(err) { return cb(err); }'
@@ -214,10 +217,14 @@ function compile(treeData, context) {
                 return output;
             }
 
-            return addString('context.model["' + node.value + '"]');
+            output = 'context.model["' + node.value + '"]';
+            if(node.state == 'plip') {
+                return addString('context.model["' + node.value + '"]');
+            }
+            return output;
         },
         'literal': function(node) {
-            return 'literal';
+            return node.value;
         },
         'list': function(node) {
             if(!isMasterList) {
