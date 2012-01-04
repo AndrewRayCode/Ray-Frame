@@ -197,8 +197,7 @@ function makeParser() {
         // Crockford does advance(';') here, and I tried advance('state'), but advance already exists on a state
         // change, so it is implied
         return expression(0);
-    };
-
+    }; 
     var statements = function() {
         var a = [],
             newStatement,
@@ -446,6 +445,7 @@ function makeParser() {
     prefix('!');
     prefix('-');
     prefix('typeof');
+    prefix('async');
 
     prefix('(', function() {
         var e = expression(0);

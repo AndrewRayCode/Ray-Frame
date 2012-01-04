@@ -41,6 +41,15 @@ function compile(treeData, context) {
         }
     };
 
+    var hasChild = function(node, value) {
+        if(node.value === value) {
+            return node;
+        }
+        return (node.first && hasChild(node.first, value))
+            || (node.second && hasChild(node.second, value))
+            || (node.third && hasChild(node.third, value));
+    };
+
     var visitors = {
         'template': function(node) {
             if(node.value && node.value.length) {
@@ -49,7 +58,27 @@ function compile(treeData, context) {
             return '';
         },
         'if': function(node) {
-            var output = 'if(' + visit(node.first) + ') {'
+            var asyncOutput = [],
+                visited,
+                output,
+                asyncChild;
+
+            // Weed out all the async if calls
+            while((asyncChild = hasChild(node.first, 'async'))) {
+                visited = visitors.async(asyncChild);
+
+                // Replace the async block with a literal equal to the result of the
+                // async function call created by the above visit statement
+                asyncChild.arity = 'literal';
+
+                // Look, I know this is stupid. But for now it works
+                asyncChild.value = visited.match(/\(err, (__[a-z])\)/)[1];
+                asyncChild.state = node.state;
+
+                asyncOutput.push(visited);
+            }
+
+            output = asyncOutput.join('') + 'if(' + visit(node.first) + ') {'
                 + visit(node.second);
 
             if(node.third) {
@@ -60,10 +89,12 @@ function compile(treeData, context) {
 
             return output;
         },
+        // Function call, like `trim()`
         '(': function(node) {
             var parameters = [],
                 parameter,
                 x = 0;
+            // Parse the parameters
             if(node.second instanceof Array) {
                 for(; parameter = node.second[x++];) {
                     parameters.push(visit(parameter));
@@ -156,7 +187,7 @@ function compile(treeData, context) {
             return '';
         },
         'for': function(node) {
-            var i = nextIterator();
+            var i = nextProbablyUniqueName();
 
             // Iterate over a dictionary
             if('key' in node.first) {
@@ -258,13 +289,41 @@ function compile(treeData, context) {
             }
             // Intentionally blank, list tags just set a flag in the metadata
             return '';
+        },
+        // As asynchronous function call
+        'async': function(node) {
+            // Get the actual function call
+            var functionNode = node.first,
+                parameters = [],
+                parameter,
+                x = 0;
+
+            // Get the parameters (should this be abstracted?)
+            if(functionNode.second instanceof Array) {
+                for(; parameter = functionNode.second[x++];) {
+                    parameters.push(visit(parameter));
+                }
+                parameters = parameters.join(',');
+            } else {
+                parameters = visit(functionNode.second);
+            }
+
+            if(parameters) {
+                parameters = ',' + parameters;
+            }
+
+            outdent = '});' + outdent;
+
+            // Make the async call
+            return 'templater.functions["' + functionNode.first.value + '"]'
+                + '(pageId, data' + parameters + ', function(err, ' + nextProbablyUniqueName() + ') {';
         }
     };
 
     var empty = function() {};
 
     // Limits nested to loops to 26 nests. If you are doing that, you have bigger problems
-    var nextIterator = function() {
+    var nextProbablyUniqueName = function() {
         var alphabet = 'abcdefghijklmnopqurstuvwxyz',
             chr = alphabet[iterator % alphabet.length];
         iterator++;

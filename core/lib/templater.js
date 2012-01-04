@@ -37,11 +37,12 @@ if(0) {
             //+'</ul>'
         //+ '{% endblock %}');
     //var a = lexer.tokenize('{% extends local "a.html" %}');
-    var a = lexer.tokenize('{% if trim(33, 2) %}{%endif%}');
+    //var a = lexer.tokenize('{% if trim(33, 2) %}{%endif%}');
+    var a = lexer.tokenize('{% if async trim() || async brim() %}{%endif%}');
     var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' `'+a[t].value+'`');}
     //log.info(tokens.join('\n'));
     var treeData = parser.parse(a);
-    //log.error(treeData.ast[1]);
+    log.error(treeData.ast[1].first);
     var c = compiler.compile(treeData, {
         role: {name: 'admin'}
     });
@@ -1038,6 +1039,9 @@ exports.createViewIfNull = function(instructions, cb) {
 exports.functions = {
     trim: function(str) {
         return 3;
+    },
+    test: function(id, data, val1, val2, callback) {
+        callback(null, true);
     }
 };
 
