@@ -38,7 +38,9 @@ if(0) {
         //+ '{% endblock %}');
     //var a = lexer.tokenize('{% extends local "a.html" %}');
     //var a = lexer.tokenize('{% if trim(33, 2) %}{%endif%}');
-    var a = lexer.tokenize('{% if async trim() || async brim() %}{%endif%}');
+    //var a = lexer.tokenize('{% if async trim() || async brim() %}{%endif%}');
+    //var a = lexer.tokenize('{% if async trim() %}1{% else if async dicks() %}2{%endif%}');
+    var a = lexer.tokenize('{% if async trim() %}cracks{% if async dicks() %}2{% endif %}tits{% endif %}');
     var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' `'+a[t].value+'`');}
     //log.info(tokens.join('\n'));
     var treeData = parser.parse(a);

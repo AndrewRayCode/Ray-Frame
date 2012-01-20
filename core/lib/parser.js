@@ -194,26 +194,37 @@ function makeParser() {
             scope.reserve(n);
             return n.std();
         }
-        // Crockford does advance(';') here, and I tried advance('state'), but advance already exists on a state
+        // Crockford does advance(';') here, and I tried advance('state'), but advance already exits on a state
         // change, so it is implied
         return expression(0);
     }; 
+
+    // Read up until a state change
     var statements = function() {
         var a = [],
             newStatement,
             endables = Array.prototype.slice.call(arguments),
-            startState = state;
+            startState = state,
+            check;
 
         while(true) {
             if(token.id == '(end)' && endables.length) {
-                error(token, 'Expected `' + endables.join('` or `') + '`, but instead got `' + token.value + '`');
+                error(token, 'Expected `' + endables.join('` or `') + ' before end of file.');
             } else if(token.id === '}' || token.id === '(end)' || (!endables.length && (startState != state))) {
                 break;
             }
+
+            // Store our current token before checking for a possible ending token
+            check = token;
+
+            // Look for the next statement
             newStatement = statement();
+
             if(newStatement) {
                 // Did we reach an end condition for this statement?
                 if((endables.indexOf(newStatement.id) > -1)) {
+                    // Reset the token to the previous one and end on it
+                    token = check;
                     break;
                 }
                 a.push(newStatement);
@@ -561,6 +572,7 @@ function makeParser() {
         metadata.hasBlocks = true;
         this.first = expression(0);
         this.second = statements('endblock');
+        advance('endblock');
         this.arity = 'statement';
         return this;
     });
@@ -591,37 +603,13 @@ function makeParser() {
         return a.length === 0 ? null : a.length === 1 ? a[0] : a;
     });
 
-    stmt('asyncif', function() {
-        var next;
-        this.first = expression(0); // statements(); // ?
-        this.arity = 'statement';
-
-        next = statements();
-        this.second = next;
-
-        if(token.value == 'else') {
-            advance();
-            this.third = statement();
-        } else if(token.value == 'endif') {
-            // Without setting this explicitly, this.third is becoming a circular reference to
-            // the same `else` node. Wtf?
-            this.third = null;
-            advance('endif');
-        } else {
-            //throw new Error('Expected `endif` or `else`, but instead got `' + token.value + '`');
-            error(token, 'Expected `endif` or `else`, but instead got `' + token.value + '`');
-        }
-
-        return this;
-    });
-
     stmt('if', function() {
-        var next;
+        // Get the condition of the if statement
         this.first = expression(0); // statements(); // ?
         this.arity = 'statement';
 
-        next = statements();
-        this.second = next;
+        // Get the body of the if
+        this.second = statements('else', 'endif');
 
         if(token.value == 'else') {
             advance();

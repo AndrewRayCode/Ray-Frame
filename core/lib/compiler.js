@@ -63,22 +63,24 @@ function compile(treeData, context) {
                 output,
                 asyncChild;
 
-            // Weed out all the async if calls
-            while((asyncChild = hasChild(node.first, 'async'))) {
+            // Weed out all the async if calls. This digs into else branhces too
+            while((asyncChild = hasChild(node, 'async'))) {
                 visited = visitors.async(asyncChild);
 
                 // Replace the async block with a literal equal to the result of the
                 // async function call created by the above visit statement
                 asyncChild.arity = 'literal';
 
-                // Look, I know this is stupid. But for now it works
+                // Look, I know this is stupid. But for now it works. We're finding the variable
+                // the async function returned by looking at the actual javascript
                 asyncChild.value = visited.match(/\(err, (__[a-z])\)/)[1];
                 asyncChild.state = node.state;
 
                 asyncOutput.push(visited);
             }
 
-            output = asyncOutput.join('') + 'if(' + visit(node.first) + ') {'
+            output = asyncOutput.join('')
+                + 'if(' + visit(node.first) + ') {'
                 + visit(node.second);
 
             if(node.third) {
