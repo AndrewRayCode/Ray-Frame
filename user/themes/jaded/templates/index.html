@@ -13,10 +13,14 @@
     {% endblock %}
 
     <table>
-    {% for dick, bong in ponies %}
+    {% for key, val in ponies %}
         <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{dick}} is {{bong}}</td>
+            <td><i>{{ loop.index }}</i> | </td>
+            <td>
+                {% for poop, shape in val %}
+                {{loop.index}}<b class="{{loop.last}}">{{ poop }}</b> is {{ shape }}<br />
+                {% endfor %}
+            </td>
         </tr>
     {% endfor %}
     </table>
