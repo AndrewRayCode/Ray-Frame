@@ -108,12 +108,15 @@ function makeParser() {
             tokenIndex += 1;
             nextTokenValue = nextToken.value;
             nextTokenArity = nextToken.type;
-            if(!nextTokenArity){log.warn(nextToken);}
         } while (nextTokenArity == 'controller' || nextTokenArity == 'plip');
 
         if(state == 'controller' || state == 'plip') {
             if(nextTokenArity === 'name') {
-                lookup = scope.find(nextTokenValue);
+                if(nextTokenValue === 'list' && state === 'plip') {
+                    lookup = symbol_table['(name)'];
+                } else {
+                    lookup = scope.find(nextTokenValue);
+                }
             } else if(nextTokenArity === 'operator') {
                 lookup = symbol_table[nextTokenValue];
                 if(!lookup) {

@@ -14,7 +14,8 @@ function compile(treeData, context) {
         isMasterList = isList && context.fileName == 'master-list.html',
         renderFromThisContext = !hasExtends && !isList,
         iterator = 0,
-        visiting = {};
+        visiting = {},
+        loopVars = [];
 
     var visit = function(node, noAncestor) {
         var vistFn,
@@ -25,7 +26,7 @@ function compile(treeData, context) {
             return visitors.nodeList(node);
         }
 
-        visitKey = (node.arity === 'statement' && visitors[node.value]) ? node.value : node.arity;
+        visitKey = (node.arity !== 'name' && visitors[node.value]) ? node.value : node.arity;
         
         if((visitFn = visitors[visitKey])) {
             if(noAncestor) {
@@ -86,7 +87,7 @@ function compile(treeData, context) {
 
                 // Look, I know this is stupid. But for now it works. We're finding the variable
                 // the async function returned by looking at the actual javascript
-                asyncChild.value = visited.match(/\(err, (__[a-z])\)/)[1];
+                asyncChild.value = visited.match(/\(err, (__[a-z]{2})\)/)[1];
                 asyncChild.state = node.state;
 
                 asyncOutput.push(visited);
@@ -97,7 +98,6 @@ function compile(treeData, context) {
                 + visit(node.second);
 
             if(node.third) {
-                log.error(node.third[1]);
                 output += '} else ' + visit(node.third);
             } else {
                 output += '}';
@@ -203,23 +203,48 @@ function compile(treeData, context) {
             return '';
         },
         'for': function(node) {
-            var i = nextProbablyUniqueName();
+            var i = nextProbablyUniqueName(),
+                needsLoop = hasChild(node, 'loop'),
+                output = loopUpdate ='',
+                second = visit(node.second),
+                loop;
+
+            if(needsLoop) {
+                loopVars.push(nextProbablyUniqueName());
+                loop = 'loop["' + getLoop() + '"]';
+
+                output = loop + ' = {index: 0, even: true, odd: false};';
+                loopUpdate = 
+                    loop + '.index++;'
+                    + loop + '.even = !' + loop + '.even;'
+                    + loop + '.odd = !' + loop + '.odd;'
+                    + loop + '.first = ' + loop + '.index === 1;'
+                    + loop + '.last = ' + loop + '.index === ' + second + '.length;';
+            }
 
             // Iterate over a dictionary (first will be [key, value])
             if(node.first.length) {
-                var second = visit(node.second),
-                    key = node.first[0].value,
+                var key = node.first[0].value,
                     value = node.first[1].value;
 
-                return 'for(context.locals["' + key + '"] in ' + second + ') {'
+                output += 'for(context.locals["' + key + '"] in ' + second + ') {'
                     + 'context.locals["' + value + '"] = ' + second + '[context.locals["' + key + '"]];'
+                    + loopUpdate
+                    + visit(node.third)
+                    + '}'; 
+            } else {
+                // or iterate over an array
+                output += 'for(var ' + i + '=0; context.locals["' + node.first.value + '"] = ' + second + '[' + i + '++];) {'
+                    + loopUpdate
                     + visit(node.third)
                     + '}'; 
             }
-            // Iterate over an array
-            return 'for(var ' + i + '=0; context.locals["' + node.first.value + '"] = ' + visit(node.second) + '[' + i + '++];) {'
-                + visit(node.third)
-                + '}'; 
+
+            if(needsLoop) {
+                loopVars.pop();
+            }
+
+            return output;
         },
         // A list of statements
         'nodeList': function(list) {
@@ -241,8 +266,10 @@ function compile(treeData, context) {
             if(node.first.arity == 'name') {
                 if(firstValue == 'child') {
                     output = 'context.model["' + secondValue + '"]';
+                } else if(firstValue == 'list') {
+                    output = 'data.list["' + secondValue  + '"]';
                 } else if(firstValue == 'loop') {
-                    output = 'data.loop["' + secondValue  + '"]';
+                    output = 'loop["' + getLoop() + '"]["' + secondValue  + '"]';
                 } else if(firstValue == 'locals') {
                     output = 'data[pageId].locals["' + secondValue  + '"]';
                 } else {
@@ -342,10 +369,10 @@ function compile(treeData, context) {
 
     var empty = function() {};
 
-    // Limits nested to loops to 26 nests. If you are doing that, you have bigger problems
+    // Generate a two letter variable name prefixed by two underscores
     var nextProbablyUniqueName = function() {
         var alphabet = 'abcdefghijklmnopqurstuvwxyz',
-            chr = alphabet[iterator % alphabet.length];
+            chr = alphabet[Math.floor(iterator / alphabet.length) % alphabet.length] + alphabet[iterator % alphabet.length];
         iterator++;
         return '__' + chr;
     };
@@ -366,6 +393,10 @@ function compile(treeData, context) {
         return 'type=' + (node.plipValues.type || 'all') + (node.plipValues.sort ? '-' + node.plipValues.sort + '-' + node.plipName : '');
     };
 
+    var getLoop = function() {
+        return loopVars[loopVars.length - 1];
+    };
+
     var contentBeforeOutdent = visit(treeData.ast);
 
     if(isMasterList) {
@@ -382,7 +413,7 @@ function compile(treeData, context) {
                     + 'cb(null, start + finished.join("") + end);'
                 + '}'
             + '};'
-            + 'data.loop = {total: total};'
+            + 'data.list = {total: total};'
             + 'data.blocks.start(function(err, parsed) {'
                 + 'start = parsed;'
                 + 'exit();'
@@ -402,7 +433,7 @@ function compile(treeData, context) {
 
     //return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
     var compiled =
-        'var ' + identifier + ' = "";'
+        'var ' + identifier + ' = "", loop = {};'
         //+ parseData.declarations
         + 'cache.fillIn(data, ' + sys.inspect(itemsToCache) + ', pageId, function(err) {'
             + 'var context = data[pageId];'

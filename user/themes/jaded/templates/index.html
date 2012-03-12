@@ -12,9 +12,14 @@
         <i>I should show up, I'm from index.html</i>
     {% endblock %}
 
+    <table>
     {% for dick, bong in ponies %}
-        {{dick}} is {{bong}}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{dick}} is {{bong}}</td>
+        </tr>
     {% endfor %}
+    </table>
 
     <hr />
     {{ pages:list:view='link.html':type=blog }}
