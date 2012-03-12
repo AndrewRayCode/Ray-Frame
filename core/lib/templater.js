@@ -40,11 +40,13 @@ if(0) {
     //var a = lexer.tokenize('{% if trim(33, 2) %}{%endif%}');
     //var a = lexer.tokenize('{% if async trim() || async brim() %}{%endif%}');
     //var a = lexer.tokenize('{% if async trim() %}1{% else if async dicks() %}2{%endif%}');
-    var a = lexer.tokenize('{% if async trim() %}cracks{% if async dicks() %}2{% endif %}tits{% endif %}');
+    //var a = lexer.tokenize('{% if async trim() %}cracks{% else %}{% if async dicks() %}2{% endif %}tits{% endif %}');
+    //var a = lexer.tokenize('{% for fart in buttz %} {{ fart }} {% endfor %}');
+    var a = lexer.tokenize('{% for key, value in buttz %} {{ key }}: {{ value }} {% endfor %}');
     var tokens = []; for(var t = 0; t < a.length; t++){tokens.push(a[t].type + ' `'+a[t].value+'`');}
     //log.info(tokens.join('\n'));
     var treeData = parser.parse(a);
-    log.error(treeData.ast[1].first);
+    //log.error(treeData.ast[1]);
     var c = compiler.compile(treeData, {
         role: {name: 'admin'}
     });

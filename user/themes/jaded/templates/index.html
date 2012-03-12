@@ -12,6 +12,10 @@
         <i>I should show up, I'm from index.html</i>
     {% endblock %}
 
+    {% for dick, bong in ponies %}
+        {{dick}} is {{bong}}
+    {% endfor %}
+
     <hr />
     {{ pages:list:view='link.html':type=blog }}
 </div>

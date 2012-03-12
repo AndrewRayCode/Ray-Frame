@@ -25,7 +25,7 @@ function compile(treeData, context) {
             return visitors.nodeList(node);
         }
 
-        visitKey = visitors[node.value] ? node.value : node.arity;
+        visitKey = (node.arity === 'statement' && visitors[node.value]) ? node.value : node.arity;
         
         if((visitFn = visitors[visitKey])) {
             if(noAncestor) {
@@ -41,13 +41,25 @@ function compile(treeData, context) {
         }
     };
 
+    // Recursively search this node for a child node matching the search value.
+    // Return on first match
     var hasChild = function(node, value) {
-        if(node.value === value) {
-            return node;
+        // If this isn't a nodelist, turn it into one
+        var nodes = (node.length ? node : [node]),
+            i = 0,
+            toSearch,
+            found;
+
+        for(; toSearch = nodes[i++];) {
+            if(toSearch.value === value) {
+                return node;
+            }
+            if((found = (toSearch.first && hasChild(toSearch.first, value))
+                || (toSearch.second && hasChild(toSearch.second, value))
+                || (toSearch.third && hasChild(toSearch.third, value)))) {
+                return found;
+            }
         }
-        return (node.first && hasChild(node.first, value))
-            || (node.second && hasChild(node.second, value))
-            || (node.third && hasChild(node.third, value));
     };
 
     var visitors = {
@@ -60,7 +72,7 @@ function compile(treeData, context) {
         'if': function(node) {
             var asyncOutput = [],
                 visited,
-                output,
+                output = '',
                 asyncChild;
 
             // Weed out all the async if calls. This digs into else branhces too
@@ -68,7 +80,8 @@ function compile(treeData, context) {
                 visited = visitors.async(asyncChild);
 
                 // Replace the async block with a literal equal to the result of the
-                // async function call created by the above visit statement
+                // async function call created by the above visit statement. Note we
+                // are modifying the tree in place here
                 asyncChild.arity = 'literal';
 
                 // Look, I know this is stupid. But for now it works. We're finding the variable
@@ -84,6 +97,7 @@ function compile(treeData, context) {
                 + visit(node.second);
 
             if(node.third) {
+                log.error(node.third[1]);
                 output += '} else ' + visit(node.third);
             } else {
                 output += '}';
@@ -191,18 +205,19 @@ function compile(treeData, context) {
         'for': function(node) {
             var i = nextProbablyUniqueName();
 
-            // Iterate over a dictionary
-            if('key' in node.first) {
+            // Iterate over a dictionary (first will be [key, value])
+            if(node.first.length) {
                 var second = visit(node.second),
-                    key = node.first.key,
-                    value = node.first.value;
-                return 'var item;for(context.locals["' + key + '"] in ' + second + ') {'
-                    + 'context.locals["' + value + '"] = ' + second + '["' + key + '"]'
+                    key = node.first[0].value,
+                    value = node.first[1].value;
+
+                return 'for(context.locals["' + key + '"] in ' + second + ') {'
+                    + 'context.locals["' + value + '"] = ' + second + '[context.locals["' + key + '"]];'
                     + visit(node.third)
                     + '}'; 
             }
             // Iterate over an array
-            return 'var item;for(var ' + i + '=0; context.locals["' + node.first.value + '"] = ' + visit(node.second) + '[' + i + '++];) {'
+            return 'for(var ' + i + '=0; context.locals["' + node.first.value + '"] = ' + visit(node.second) + '[' + i + '++];) {'
                 + visit(node.third)
                 + '}'; 
         },
@@ -272,10 +287,13 @@ function compile(treeData, context) {
                 return output;
             }
 
-            output = 'context.model["' + node.value + '"]';
+            output = '(context.locals["' + node.value + '"] || context.model["' + node.value + '"])';
+
+            // If this is a {{ plip }} just add it to the template output
             if(node.state == 'plip') {
-                return addString('context.model["' + node.value + '"]');
+                return addString(output);
             }
+
             return output;
         },
         'literal': function(node) {

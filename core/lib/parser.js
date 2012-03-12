@@ -11,7 +11,7 @@ function makeParser() {
         metadata = {},
         token,
         tokens,
-        token_nr,
+        tokenIndex,
         state = 'template',
         topLevel;
 
@@ -78,58 +78,62 @@ function makeParser() {
     };
 
     var advance = function(id) {
-        var a, o, t, v,
+        var nextTokenArity, lookup, nextToken, nextTokenValue,
             startState = state;
 
         if(id && token.id !== id && id != 'state') {
             if(id == '(end)' && token.id != 'template') {
                 error(token, 'Expected end of file, but instead got `' + token.id + '` (' + token.value + ')');
+            } else {
+                error(token, 'Expected ' + id + ', but instead got `' + token.id + '` (' + token.value + ')');
             }
         }
-        
-        // Look at the next token from the lexer. If it triggers a state change, like a '%}' or '{{',
+
+        // Look at the next token from the lexer. If it triggers nextTokenArity state change, like nextTokenArity '%}' or '{{',
         // record the new state and read the next token. Pretend like nothing happened.
         do {
-            if(a) {
-                if(state == 'template') {
-                    state = a;
+            if(nextTokenArity) {
+                if(state === 'template') {
+                    state = nextTokenArity;
                 } else {
                     state = 'template';
                 }
             }
-            if(token_nr >= tokens.length) {
+
+            if(tokenIndex >= tokens.length) {
                 token = symbol_table['(end)'];
                 return;
             }
-            t = tokens[token_nr];
-            token_nr += 1;
-            v = t.value;
-            a = t.type;
-        } while (a == 'controller' || a == 'plip');
+            nextToken = tokens[tokenIndex];
+            tokenIndex += 1;
+            nextTokenValue = nextToken.value;
+            nextTokenArity = nextToken.type;
+            if(!nextTokenArity){log.warn(nextToken);}
+        } while (nextTokenArity == 'controller' || nextTokenArity == 'plip');
 
         if(state == 'controller' || state == 'plip') {
-            if(a === 'name') {
-                o = scope.find(v);
-            } else if(a === 'operator') {
-                o = symbol_table[v];
-                if(!o) {
-                    error(t, 'Unknown operator:' + token.value);
+            if(nextTokenArity === 'name') {
+                lookup = scope.find(nextTokenValue);
+            } else if(nextTokenArity === 'operator') {
+                lookup = symbol_table[nextTokenValue];
+                if(!lookup) {
+                    error(nextToken, 'Unknown operator:' + token.value);
                 }
-            } else if(a === 'string' || a ===  'number') {
-                o = symbol_table['(literal)'];
-                a = 'literal';
+            } else if(nextTokenArity === 'string' || nextTokenArity ===  'number') {
+                lookup = symbol_table['(literal)'];
+                nextTokenArity = 'literal';
             } else {
-                error(t, 'Unexpected token: `' + t.value + '`');
+                error(nextToken, 'Unexpected token: `' + nextToken.value + '`');
             }
         } else if(state == 'template') {
-            o = symbol_table[a];
+            lookup = symbol_table[nextTokenArity];
         }
         
-        token = Object.create(o);
-        token.from  = t.from;
-        token.to    = t.to;
-        token.value = v;
-        token.arity = a;
+        token = Object.create(lookup);
+        token.from  = nextToken.from;
+        token.to    = nextToken.to;
+        token.value = nextTokenValue;
+        token.arity = nextTokenArity;
         token.state = state;
         return token;
     };
@@ -199,13 +203,13 @@ function makeParser() {
         return expression(0);
     }; 
 
-    // Read up until a state change
+    // Process the next statement(s) until the end of the file or an ending token id is reached
     var statements = function() {
-        var a = [],
+        var nextStatements = [],
             newStatement,
             endables = Array.prototype.slice.call(arguments),
             startState = state,
-            check;
+            preToken, preTokenIndex, preState;
 
         while(true) {
             if(token.id == '(end)' && endables.length) {
@@ -214,23 +218,26 @@ function makeParser() {
                 break;
             }
 
-            // Store our current token before checking for a possible ending token
-            check = token;
+            // Store our current token before checking for a possible ending token.
+            preToken = token;
+            preTokenIndex = tokenIndex;
+            preState = state;
 
-            // Look for the next statement
-            newStatement = statement();
-
-            if(newStatement) {
+            if((newStatement = statement())) {
                 // Did we reach an end condition for this statement?
                 if((endables.indexOf(newStatement.id) > -1)) {
-                    // Reset the token to the previous one and end on it
-                    token = check;
+                    // If statements() is passed a value like 'endif' then we expect the value 
+                    // of 'token' to be 'endif' after statements() runs, so reset token to the
+                    // value it was before 'endif'
+                    token = preToken;
+                    tokenIndex = preTokenIndex;
+                    state = preState;
                     break;
                 }
-                a.push(newStatement);
+                nextStatements.push(newStatement);
             }
         }
-        return a.length === 0 ? null : a.length === 1 ? a[0] : a;
+        return !nextStatements.length ? null : nextStatements.length === 1 ? nextStatements[0] : nextStatements;
     };
 
     var block = function() {
@@ -323,9 +330,9 @@ function makeParser() {
         return s;
     };
 
-    var stmt = function(s, f) {
+    var stmt = function(s, statementFunction) {
         var x = symbol(s);
-        x.std = f || function() {
+        x.std = statementFunction || function() {
             this.arity = 'statement';
             this.id = s;
             advance();
@@ -612,8 +619,9 @@ function makeParser() {
         this.second = statements('else', 'endif');
 
         if(token.value == 'else') {
-            advance();
-            this.third = statement();
+            advance('else');
+            this.third = statements('endif');
+            advance('endif');
         } else if(token.value == 'endif') {
             // Without setting this explicitly, this.third is becoming a circular reference to
             // the same `else` node. Wtf?
@@ -650,9 +658,16 @@ function makeParser() {
 
     stmt('for', function() {
         this.first = expression(0);
+
+        if(token.value == ',') {
+            advance(',');
+            this.first = [this.first, expression(0)];
+        }
+
         advance('in');
         this.second = expression(0);
         this.third = statements('endfor');
+        advance('endfor');
         this.arity = 'statement';
         return this;
     });
@@ -668,7 +683,7 @@ function makeParser() {
 
     return function(source) {
         tokens = source;
-        token_nr = 0;
+        tokenIndex = 0;
         new_scope();
         advance();
         var stmts = [],
