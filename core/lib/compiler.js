@@ -2,40 +2,51 @@ var log = require('simple-logger'),
     sys = require('sys'),
     utils = require('./utils');
 
-function compile(treeData, context) {
+function makeCompiler() {
     var buffer = predent = outdent = blocks = list = includes = '',
         identifier = 'str',
         itemsToCache = {},
         viewsToCreate = [],
-        hasExtends = treeData.metadata.hasExtendsStatement,
-        hasBlocks = treeData.metadata.hasBlocks,
-        hasIncludes = treeData.metadata.hasIncludeStatement,
-        isList = treeData.metadata.isList,
-        isMasterList = isList && context.fileName == 'master-list.html',
-        renderFromThisContext = !hasExtends && !isList,
         iterator = 0,
         visiting = {},
-        loopVars = [];
+        loopVars = [],
+        guests = {},
 
-    var visit = function(node, noAncestor) {
+        // populated by compile()
+        context,
+        hasExtends,
+        hasBlocks,
+        hasIncludes,
+        isList,
+        isMasterList,
+        renderFromThisContext;
+
+    var extend = function(walkers) {
+        guests = walkers;
+    };
+
+    var visit = function(node, ancestor) {
         var vistFn,
             visitKey,
             visited;
 
         if(node.length) {
-            return visitors.nodeList(node);
+            visitKey = 'nodeList';
+        } else {
+            visitKey = (node.arity !== 'name' && (visitors[node.value] || guests[node.value])) ?
+                node.value : node.arity;
         }
-
-        visitKey = (node.arity !== 'name' && visitors[node.value]) ? node.value : node.arity;
         
-        if((visitFn = visitors[visitKey])) {
-            if(noAncestor) {
-                node.ancestor = {};
-            } else {
+        if((visitFn = (guests[visitKey] || visitors[visitKey]))) {
+            if(ancestor) {
+                node.ancestor = ancestor;
+            // Pass in of null means assign no ancestor
+            } else if(ancestor !== null) {
                 node.ancestor = visiting;
             }
             visiting = node;
-            return visitFn(node);
+
+            return visitFn(node, visitors[visitKey]);
         } else {
             log.warn('Warning on ' + context.fileName + ': Node compiler not implemented: ' + visitKey, ': `'+ node.value + '` (' + node.arity + ')');
             return '';
@@ -253,7 +264,7 @@ function compile(treeData, context) {
                 output = '';
 
             for(; node = list[i++];) {
-                output += visit(node, true);
+                output += visit(node, list.ancestor || null);
             }
             return output;
         },
@@ -397,72 +408,93 @@ function compile(treeData, context) {
         return loopVars[loopVars.length - 1];
     };
 
-    var contentBeforeOutdent = visit(treeData.ast);
+    var compile = function(treeData, compileContext) {
+        context = compileContext;
+        hasExtends = treeData.metadata.hasExtendsStatement;
+        hasBlocks = treeData.metadata.hasBlocks;
+        hasIncludes = treeData.metadata.hasIncludeStatement;
+        isList = treeData.metadata.isList;
+        isMasterList = isList && context.fileName == 'master-list.html';
+        renderFromThisContext = !hasExtends && !isList;
 
-    if(isMasterList) {
-        list = // Total is all the list elements, plus start and end blocks
-            'var docs = data[pageId].model[data.listField],'
-            + '    total = docs.length + 2,'
-            + '    processed = x = 0,'
-            + '    finished = [],'
-            + '    start = end = "",'
-            + '    page;'
-            + 'var exit = function(index, str) {'
-                + 'str && (finished[index] = str);'
-                + 'if(++processed == total) {'
-                    + 'cb(null, start + finished.join("") + end);'
-                + '}'
-            + '};'
-            + 'data.list = {total: total};'
-            + 'data.blocks.start(function(err, parsed) {'
-                + 'start = parsed;'
-                + 'exit();'
-            + '});'
-            + 'data.blocks.end(function(err, parsed) {'
-                + 'end = parsed;'
-                + 'exit();'
-            + '});'
-            + 'for(; page = docs[x++];) {'
-                + '(function(index) {'
-                    + 'data.blocks.element(docs, index, function(err, parsed) {'
-                        + 'exit(index, parsed);'
-                    + '});'
-                + '})(x - 1);'
-            + '}';
-    }
+        var contentBeforeOutdent = visit(treeData.ast);
 
-    //return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
-    var compiled =
-        'var ' + identifier + ' = "", loop = {};'
-        //+ parseData.declarations
-        + 'cache.fillIn(data, ' + sys.inspect(itemsToCache) + ', pageId, function(err) {'
-            + 'var context = data[pageId];'
-            //+ 'var entryId = pageId;'
-            + 'if(err) { return cb(err); }'
-            + ' try {'
-            // Set up defined blocks if we have them
-            + blocks
-            + includes
-            + contentBeforeOutdent
-            // Render this page if we aren't passing control to another page
-            + (list || (renderFromThisContext ? 
-                    'if(!data.included) {'
-                    + 'cb(null, ' + identifier + ');'
-                    + '} else {'
-                    + 'cb(null, data);'
+        if(isMasterList) {
+            list = // Total is all the list elements, plus start and end blocks
+                'var docs = data[pageId].model[data.listField],'
+                + '    total = docs.length + 2,'
+                + '    processed = x = 0,'
+                + '    finished = [],'
+                + '    start = end = "",'
+                + '    page;'
+                + 'var exit = function(index, str) {'
+                    + 'str && (finished[index] = str);'
+                    + 'if(++processed == total) {'
+                        + 'cb(null, start + finished.join("") + end);'
                     + '}'
-                : ''))
-            + outdent
-            + '} catch(e) {'
-            + 'cb(e);'
-            + '}'
-        + '});';
+                + '};'
+                + 'data.list = {total: total};'
+                + 'data.blocks.start(function(err, parsed) {'
+                    + 'start = parsed;'
+                    + 'exit();'
+                + '});'
+                + 'data.blocks.end(function(err, parsed) {'
+                    + 'end = parsed;'
+                    + 'exit();'
+                + '});'
+                + 'for(; page = docs[x++];) {'
+                    + '(function(index) {'
+                        + 'data.blocks.element(docs, index, function(err, parsed) {'
+                            + 'exit(index, parsed);'
+                        + '});'
+                    + '})(x - 1);'
+                + '}';
+        }
+
+        //return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
+        compiled =
+            'var ' + identifier + ' = "", loop = {};'
+            //+ parseData.declarations
+            + 'cache.fillIn(data, ' + sys.inspect(itemsToCache) + ', pageId, function(err) {'
+                + 'var context = data[pageId];'
+                //+ 'var entryId = pageId;'
+                + 'if(err) { return cb(err); }'
+                + ' try {'
+                // Set up defined blocks if we have them
+                + blocks
+                + includes
+                + contentBeforeOutdent
+                // Render this page if we aren't passing control to another page
+                + (list || (renderFromThisContext ? 
+                        'if(!data.included) {'
+                        + 'cb(null, ' + identifier + ');'
+                        + '} else {'
+                        + 'cb(null, data);'
+                        + '}'
+                    : ''))
+                + outdent
+                + '} catch(e) {'
+                + 'cb(e);'
+                + '}'
+            + '});';
+
+        return {
+            compiled: compiled,
+            views: viewsToCreate
+        };
+    };
 
     return {
-        compiled: compiled,
-        views: viewsToCreate
+        compile: compile,
+        extend: extend,
+        nextProbablyUniqueName: nextProbablyUniqueName,
+        addQuotedString: addQuotedString,
+        addString: addString,
+        escapeChars: escapeChars,
+        getViewName: getViewName,
+        getLoop: getLoop
     };
 }
 
 var compiler = module.exports;
-compiler.compile = compile;
+compiler.makeCompiler = makeCompiler;

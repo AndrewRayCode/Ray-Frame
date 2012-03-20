@@ -10,6 +10,7 @@ var templater = module.exports,
     lexer = require('./lexer'),
     parser = require('./parser'),
     compiler = require('./compiler'),
+    adminCompiler = require('./admin_compiler'),
     themesDirectory = '../../user/themes/',
     coreTemplateDir = '../static/';
 
@@ -123,12 +124,13 @@ exports.mangleToFunction = function(inputFunction, filepath) {
 // Take raw template string from the filesystem and feed it to the parser. Store the parser's output in a meaningful way
 // so that the data can be used in other areas
 exports.processTemplateString = function(fileName, template, options, cb) {
-    var tokens = lexer.tokenize(template);
-    var treeData = parser.parse(tokens);
-    var output = compiler.compile(treeData, {
-        role: options.permission,
-        fileName: fileName
-    });
+    var tokens = lexer.tokenize(template),
+        treeData = parser.parse(tokens),
+        //output = compiler.makeCompiler().compile(treeData, {
+        output = adminCompiler.makeCompiler().compile(treeData, {
+            role: options.permission,
+            fileName: fileName
+        });
 
     templater.createViews(output.views, function(err) {
         cb(err, output);
