@@ -8,7 +8,7 @@ module.exports = testutils.testCase({
         assert.expect(2);
         // Get the homepage to force generation of includesheader.html
         testutils.requestURL(self, assert, {}, {url:'/'}, function(server, response) {
-			var couch_client = require('../../../../node-couchdb/index.js').createClient(5984, 'localhost'),
+			var couch_client = require('felix-couchdb').createClient(5984, 'localhost'),
 			couch = couch_client.db('rayframe-test');
 
 			// First save two pages to the homepage
@@ -38,7 +38,7 @@ module.exports = testutils.testCase({
         assert.expect(3);
         // Get the homepage to force generation of includesheader.html
         testutils.requestURL(self, assert, {}, {url:'/'}, function(server, response) {
-			var couch_client = require('../../../../node-couchdb/index.js').createClient(5984, 'localhost'),
+			var couch_client = require('felix-couchdb').createClient(5984, 'localhost'),
 			couch = couch_client.db('rayframe-test');
 
 			couch.getDocsByKey(['root', 'url:~'], function(err, result) {

@@ -1,5 +1,5 @@
 var http = require('http'),
-	sys = require('sys'),
+	sys = require('util'),
 	fs = require('fs'),
 	path = require('path'),
 	log = require('simple-logger'),
@@ -9,17 +9,17 @@ var http = require('http'),
     cache = require('./lib/cache'),
     flower = require('./lib/flower'),
 	express_lib = require('express'),
+	cradle = require('cradle'),
     server = module.exports;
 
 exports.createServer = function(options, cb) {
-    log.log_level = 'info';
+    log.level = 'info';
 
     // Set up express and couch and defaults
     var express = express_lib.createServer(),
         // TODO: If couch isn't running we just get a top level exception thrown on first access atempt. Would be nice to
         // tell user to start couch.
-        couch_client = require('node-couchdb').createClient(5984, 'localhost'),
-        couch = couch_client.db(options.db_name || 'rayframe'),
+        couch = new(cradle.Connection)().database(options.db_name || 'rayframe'),
         theme = options.theme || 'ray-frame',
         core_static = 'core/static/',
         user_static = 'user/themes/' + theme + '/static/';
@@ -61,7 +61,7 @@ exports.createServer = function(options, cb) {
             // This is the handler for any web page. There are URL objects in the database that we look up. So basically every
             // URL on the site has its own URL object which contains the id to the model object, and a parent chain of other
             // URL objects so we can say, build a breadcrumb trail
-            couch.view('master', 'url', {key: dbPath}, function(err, result) {
+            couch.view('master/url', {key: dbPath}, function(err, result) {
                 if(err) {
                     log.error('Error fetching URL view `'+dbPath+'`: ',err);
                     res.writeHead(500, {'Content-Type': 'text/html'});
@@ -115,24 +115,28 @@ exports.createServer = function(options, cb) {
             templater.autoRevalidate();
 
             // Set up our transient functions (functions that can run server and client side, right now for core live in transient.js);
-            var t = './transients.js';
+            var t = './transients.js', x;
             path.exists(t, function(ya) {
                 if(ya) {
                     var transients = require(t);
-                    for(var x in transients) {
-                        templater.addTransientFunction(x, transients[x]);
+                    for(var trans in transients) {
+                        templater.addTransientFunction(trans, transients[x]);
                     }
                 }
                 templater.addNamespace('utils');
                 // Also copy over all the utility functions to be transients
-                for(var x in utils) {
-                    templater.addNamespacedTransientFunction('utils', x, utils[x]);
+                for(var thing in utils) {
+                    templater.addNamespacedTransientFunction('utils', thing, utils[thing]);
                 }
                 server.setUpAccess(express);
 
                 // Here we go!
                 express.listen(options.server_port || 8080);
                 log.info('Server running on '+(options.server_port || 8080)+'!');
+
+                fs.watch('core', function(event, filename) {
+                    log.warn(filename + ' changed!');
+                });
 
                 if(cb) {
                     cb(null, server);
@@ -144,7 +148,7 @@ exports.createServer = function(options, cb) {
     if(options.hard_reset) {
         server.resetDatabase(couch, function(err) {
             if(err) {
-                return log.error('Fatal error encounted while trying to reset database: ',err);
+                return log.error('Fatal error encounted while trying to reset database: ', err);
             }
             prepareForGoTime();
         });
@@ -161,11 +165,13 @@ exports.resetDatabase = function(couch, callback) {
                 if(err) {
                     log.error('There was a fatal error creating the database! ',err);
                     return callback(err);
-                } else {
-                    log.info('Recreated database `'+couch.name+'`');
+                }
+                log.info('Recreated database `'+couch.name+'`');
 
-                    // Create a view in a design doc TODO: Is there a way to multi these two calls?
-                    couch.saveDesign('master', {
+                // Create our homepage object and url object for it. Bulkdocs takes _id
+                utils.bulkDocs(couch, [
+                    {
+                        _id: '_design/master',
                         views: {
                             // Not currently needed, but this is the syntax for a view save
                             'url':{
@@ -176,42 +182,39 @@ exports.resetDatabase = function(couch, callback) {
                                 }
                             }
                         }
-                    }, function(err) {
-                        // Create our homepage object and url object for it. Bulkdocs takes _id
-                        utils.bulkDocs(couch, [
-                            // TEST DATA
+                    },
+                    // TEST DATA
 
-                            // root is special case. Let couch name other keys for page objects
-                            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'Velokmen!', url: utils.sanitizeUrl('/'),
-                                parents: [], blogs: ['ab2', 'ab3', 'ab1'], ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}}},
-                            {_id:'test.html', template:'test.html', title:'hello', welcome_msg: 'Test says Velokmen!', test_msg: 'Test message!',
-                                parents: [], pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']},
+                    // root is special case. Let couch name other keys for page objects
+                    {_id:'root', template:'index.html', title:'hello', welcome_msg: 'Velokmen!', url: utils.sanitizeUrl('/'),
+                        parents: [], blogs: ['ab2', 'ab3', 'ab1'], ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}}},
+                    {_id:'test.html', template:'test.html', title:'hello', welcome_msg: 'Test says Velokmen!', test_msg: 'Test message!',
+                        parents: [], pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']},
 
-                            //{_id:'header.html', template:'header.html'},
-                            //{_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
+                    //{_id:'header.html', template:'header.html'},
+                    //{_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
 
-                            // CRAP DATA
-                            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost'), body: 'threenis'},
-                            {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
+                    // CRAP DATA
+                    {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost'), body: 'threenis'},
+                    {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
 
-                            //{_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogposta')},
-                            //{_id:'ab2', template:'blog.html', title: 'other blog 2 (first)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostb')},
-                            //{_id:'ab3', template:'blog.html', title: 'other blog 3 (midle)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostc')},
+                    //{_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogposta')},
+                    //{_id:'ab2', template:'blog.html', title: 'other blog 2 (first)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostb')},
+                    //{_id:'ab3', template:'blog.html', title: 'other blog 3 (midle)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostc')},
 
-                            // TODO: This should be a core template, overwritable (there currently are no core templates)
-                            {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}
-                        ], function(err) {
-                            log.info('Database reset complete. The homepage (index.html) has been automatically added.');
-                            callback(err);
-                        });
-                    });
-                }
+                    // TODO: This should be a core template, overwritable (there currently are no core templates)
+                    {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}
+                ], function(err) {
+                    !err && log.info('Database reset complete. The homepage (index.html) has been automatically added.');
+                    callback(err);
+                });
             });
+            return true;
         }
 
         if(exists) {
             log.info('Existing database found, deleting for development');
-            couch.remove(recreate);
+            couch.destroy(recreate);
         } else {
             recreate();
         }
@@ -226,7 +229,7 @@ exports.createPost = function(express, role, prefix, name, functionCall) {
         utils.authSession(req);
 
         if(utils.isAllowed(permissions, role, req.session.user.role)) {
-            server.couch.getDocsByKey([req.body.current_id, req.body.current_url_id], function(err, result) {
+            server.couch.get([req.body.current_id, req.body.current_url_id], function(err, result) {
                 functionCall(req, res, result.rows[0].doc, result.rows[1].doc, server.couch);
             });
         }

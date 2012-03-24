@@ -111,7 +111,7 @@ exports.getList = function(viewName, viewData, parentKey, cb) {
         queryParams.include_docs = true;
     }
 
-    this.couch.view('master', viewName, queryParams, function(err, result) {
+    this.couch.view('master/' + viewName, queryParams, function(err, result) {
         if(err) {
             return cb(new Error('Error querying couch view `' + viewName + ':`' + err.error + ', ' + err.reason));
         } else if(!result.rows.length) {
@@ -139,7 +139,7 @@ exports.getList = function(viewName, viewData, parentKey, cb) {
 };
 
 cache.getDocsByKey = function(keys, cb) {
-    this.couch.getDocsByKey(keys, function(err, result) {
+    this.couch.get(keys, function(err, result) {
         if(err) {
             return cb(err);
         }

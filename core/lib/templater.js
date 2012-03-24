@@ -1,6 +1,6 @@
 var templater = module.exports,
     log = require('simple-logger'),
-    sys = require('sys'),
+    sys = require('util'),
 	fs = require('fs'),
 	path = require('path'),
     transients = require('../transients'),
@@ -14,7 +14,7 @@ var templater = module.exports,
     themesDirectory = '../../user/themes/',
     coreTemplateDir = '../static/';
 
-log.log_level = 'info';
+log.level = 'info';
 
 // Function code available on front end and back end
 exports.transientFunctions = '';
@@ -163,12 +163,12 @@ exports.addNamespacedTransientFunction = function(namespace, name, reference) {
 exports.getInstructions = function(plip) {
     var conclusion = {
         raw: plip
-    };
+    }, parts, fields, dotSplit;
 
     if(!plip.indexOf('listItem:')) {
 
         // listItem:field_on_parent:child_id:index
-        var fields = plip.split(':');
+        fields = plip.split(':');
 
         conclusion.listItem = true;
         conclusion.parentField = fields[1];
@@ -177,7 +177,7 @@ exports.getInstructions = function(plip) {
     } else {
         // Example: "plip:global.html@info". the actual plip is just "info"
         if(!plip.indexOf('plip:')) {
-            var parts = plip.match(/:(.+?)@(.+?)$/);
+            parts = plip.match(/:(.+?)@(.+?)$/);
 
             conclusion.doc_id = parts[1];
             conclusion.isPlip = true;
@@ -190,14 +190,14 @@ exports.getInstructions = function(plip) {
             }
         } else if(!plip.indexOf('list:')) {
             conclusion.widget = 'list';
-            var parts = plip.match(/:(.+?)@(.+?)$/);
+            parts = plip.match(/:(.+?)@(.+?)$/);
 
             plip = parts[2];
             conclusion.doc_id = parts[1];
         }
 
-        var fields = plip.split(':'),
-            dotSplit = fields[0].split('.');
+        fields = plip.split(':');
+        dotSplit = fields[0].split('.');
 
         // The key of the document
         conclusion.field = fields[0];
@@ -322,7 +322,8 @@ exports.getViewName = function(instructions) {
 
 templater.createViews = function(views, cb) {
     var total = views.length,
-        processed = x = 0,
+        processed = 0,
+        x = 0,
         view, plip;
 
     if(!total) {
@@ -343,7 +344,7 @@ templater.createViews = function(views, cb) {
 };
 
 exports.createViewIfNull = function(instructions, cb) {
-    templater.couch.getDesign('master', function(err, doc) {
+    templater.couch.get('_design/master', function(err, doc) {
         if(err) {
             return cb(new Error('There was a fatal error, master design not found!', err));
         }
@@ -396,7 +397,7 @@ exports.createViewIfNull = function(instructions, cb) {
                 }
             }
 
-            templater.couch.saveDesign('master', doc, function(err) {
+            templater.couch.save('_design/master', doc, function(err) {
                 // If we have a document update conflict on saving a map function then 
                 // most likely another template raced to create it. TODO: This could
                 // be an issue for multiple lists modifying the design document at once!

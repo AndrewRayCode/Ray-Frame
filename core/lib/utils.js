@@ -1,4 +1,4 @@
-var sys    = require('sys'),
+var sys    = require('util'),
 	log = require('simple-logger'),
 	path = require('path'),
     fs = require('fs'),
@@ -46,7 +46,7 @@ exports.generateTitle = function(str) {
 };
 
 exports.getOrCreate = function(couch, path, template, cb) {
-	couch.getDoc(path, function(err, firstres) {
+	couch.get(path, function(err, firstres) {
 		if(err) {
 			// This thing is not yet in the database. Let's put it there!
             var d = new Date(),
@@ -171,7 +171,7 @@ exports.bulkDocs = function(couch, docs, cb) {
     docs.forEach(function(doc) {
         doc.modified = d;
     });
-    couch.bulkDocs({docs: docs}, cb);
+    couch.save(docs, cb);
 };
 
 exports.authSession = function(req) {

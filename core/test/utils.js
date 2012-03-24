@@ -1,6 +1,6 @@
 var log = require('simple-logger'),
     http = require('http'),
-    sys = require('sys'),
+    sys = require('util'),
     nodeunit = require('nodeunit'),
     querystring = require('querystring'),
     server = require('../server');

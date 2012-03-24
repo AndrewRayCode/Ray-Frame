@@ -1,4 +1,4 @@
-var sys    = require('sys'),
+var sys    = require('util'),
     log = require('simple-logger'),
     fs = require('fs'),
     templater = require('./lib/templater'),
@@ -21,7 +21,7 @@ module.exports = [{
 
         },
         getField: function(req, res, pageData, urlData, couch) {
-            couch.getDoc(req.body.id, function(err, doc) {
+            couch.get(req.body.id, function(err, doc) {
                 if(err) {
                     log.error('Error getting main doc from couch: ',err);
                     res.send({status:'failure', message:err});
@@ -48,7 +48,7 @@ module.exports = [{
                     return;
                 }
                 // Get the document the list is on for context
-                couch.getDoc(doc_id, function(err, doc) {
+                couch.get(doc_id, function(err, doc) {
                     if(err) {
                         log.error('Error getting main doc from couch: ',err);
                         res.send({status:'failure', message:err});
@@ -63,7 +63,7 @@ module.exports = [{
                     fakeData[childId] = {
                         variables: {title: 'title'},
                         locals: {}
-                    }
+                    };
 
                     // TODO: Please abstract this because we basically duplicate it in templater
                     var listTemplateView = instructions.listBody + user.role,
@@ -100,7 +100,7 @@ module.exports = [{
                 }
 
                 // Get the stub item in the list to update its title field
-                couch.getDoc(item_instr.doc_id, function(err, docToAdd) {
+                couch.get(item_instr.doc_id, function(err, docToAdd) {
                     if(err) {
                         return res.send({status:'failure', message:err.message});
                     }
@@ -136,7 +136,7 @@ module.exports = [{
                 beginUpdate(pageData, urlData);
             // If this list is in an embedded oject on the page, like an include or a sub list
             } else {
-                couch.getDoc(list_instr.doc_id, function(err, correctPageData) {
+                couch.get(list_instr.doc_id, function(err, correctPageData) {
                     if(err) {
                         res.send({status:'failure', message:err.message});
                         return;
@@ -151,7 +151,7 @@ module.exports = [{
                             if(urlData._id == home) {
                                 beginUpdate(correctPageData, urlData);
                             } else {
-                                couch.getDoc(home, function(err, homepageUrlData) {
+                                couch.get(home, function(err, homepageUrlData) {
                                     if(err) {
                                         return res.send({status:'failure', message:err.message});
                                     }
@@ -177,7 +177,7 @@ module.exports = [{
         update: function(req, res, pageData, urlData, couch) {
             var instructions = req.body.instructions;
 
-            couch.getDoc(instructions.doc_id, function(err, doc) {
+            couch.get(instructions.doc_id, function(err, doc) {
 
                 doc[instructions.field] = req.body.value;
 
@@ -192,7 +192,7 @@ module.exports = [{
         updateList: function(req, res, pageData, urlData, couch) {
             var parts = req.body.field.split(':');
 
-            couch.getDoc(parts[0], function(err, doc) {
+            couch.get(parts[0], function(err, doc) {
                 doc[parts[1]] = req.body.value;
                 utils.saveDoc(couch, doc._id, doc, function(err, dbres) {
                     if(err) {
