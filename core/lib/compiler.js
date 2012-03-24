@@ -1,5 +1,5 @@
 var log = require('simple-logger'),
-    sys = require('sys'),
+    sys = require('util'),
     utils = require('./utils');
 
 function makeCompiler() {
@@ -28,7 +28,8 @@ function makeCompiler() {
     var visit = function(node, ancestor) {
         var vistFn,
             visitKey,
-            visited;
+            visited,
+            returned;
 
         if(node.length) {
             visitKey = 'nodeList';
@@ -40,13 +41,15 @@ function makeCompiler() {
         if((visitFn = (guests[visitKey] || visitors[visitKey]))) {
             if(ancestor) {
                 node.ancestor = ancestor;
+                node.ancestorIsList = true;
             // Pass in of null means assign no ancestor
             } else if(ancestor !== null) {
                 node.ancestor = visiting;
             }
             visiting = node;
 
-            return visitFn(node, visitors[visitKey]);
+            returned = visitFn(node, visitors[visitKey]);
+            return typeof returned === 'string' ? returned : visitors[visitKey](node);
         } else {
             log.warn('Warning on ' + context.fileName + ': Node compiler not implemented: ' + visitKey, ': `'+ node.value + '` (' + node.arity + ')');
             return '';
@@ -74,7 +77,15 @@ function makeCompiler() {
         }
     };
 
+    var empty = function() {
+        return '';
+    };
+
     var visitors = {
+        'start': empty,
+        'end': empty,
+        'beforeBlock': empty,
+        'afterBlock': empty,
         'template': function(node) {
             if(node.value && node.value.length) {
                 return addQuotedString(escapeChars(node.value));
@@ -150,7 +161,9 @@ function makeCompiler() {
                     + 'function(docs, index, cb) {'
                     + 'var ' + identifier + ' = "",'
                     + '    context = data[docs[index]];'
+                    + visitors.beforeBlock(node)
                     + visit(node.second)
+                    + visitors.afterBlock(node)
                     + 'cb(null, ' + identifier + ');'
                     + '};';
             } else {
@@ -159,7 +172,9 @@ function makeCompiler() {
                     : '["' + blockName + '"] = ')
                     + 'function(cb) {'
                     + 'var ' + identifier + ' = "";'
+                    + visitors.beforeBlock(node)
                     + visit(node.second)
+                    + visitors.afterBlock(node)
                     + 'cb(null, ' + identifier + ');'
                     + '};';
 
@@ -378,8 +393,6 @@ function makeCompiler() {
         }
     };
 
-    var empty = function() {};
-
     // Generate a two letter variable name prefixed by two underscores
     var nextProbablyUniqueName = function() {
         var alphabet = 'abcdefghijklmnopqurstuvwxyz',
@@ -409,15 +422,15 @@ function makeCompiler() {
     };
 
     var compile = function(treeData, compileContext) {
-        context = compileContext;
-        hasExtends = treeData.metadata.hasExtendsStatement;
-        hasBlocks = treeData.metadata.hasBlocks;
-        hasIncludes = treeData.metadata.hasIncludeStatement;
-        isList = treeData.metadata.isList;
-        isMasterList = isList && context.fileName == 'master-list.html';
-        renderFromThisContext = !hasExtends && !isList;
+        this.context = context = compileContext;
+        this.hasExtends = hasExtends = treeData.metadata.hasExtendsStatement;
+        this.hasBlocks = hasBlocks = treeData.metadata.hasBlocks;
+        this.hasIncludes = hasIncludes = treeData.metadata.hasIncludeStatement;
+        this.isList = isList = treeData.metadata.isList;
+        this.isMasterList = isMasterList = isList && context.fileName == 'master-list.html';
+        this.renderFromThisContext = renderFromThisContext = !hasExtends && !isList;
 
-        var contentBeforeOutdent = visit(treeData.ast);
+        var contentBeforeOutdent = visit({value: 'start'}) + visit(treeData.ast) + visit({value: 'end'});
 
         if(isMasterList) {
             list = // Total is all the list elements, plus start and end blocks
@@ -492,7 +505,9 @@ function makeCompiler() {
         addString: addString,
         escapeChars: escapeChars,
         getViewName: getViewName,
-        getLoop: getLoop
+        getLoop: getLoop,
+        identifier: identifier,
+        blocks: blocks
     };
 }
 
