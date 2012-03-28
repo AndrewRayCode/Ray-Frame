@@ -3,7 +3,12 @@ var log = require('simple-logger'),
     utils = require('./utils');
 
 function makeCompiler() {
-    var buffer = predent = outdent = blocks = list = includes = '',
+    var buffer = '',
+        predent = '',
+        outdent = '',
+        blocks = '',
+        list = '',
+        includes = '',
         identifier = 'str',
         itemsToCache = {},
         viewsToCreate = [],
@@ -231,7 +236,8 @@ function makeCompiler() {
         'for': function(node) {
             var i = nextProbablyUniqueName(),
                 needsLoop = hasChild(node, 'loop'),
-                output = loopUpdate ='',
+                output = '',
+                loopUpdate ='',
                 second = visit(node.second),
                 loop;
 
@@ -279,7 +285,11 @@ function makeCompiler() {
                 output = '';
 
             for(; node = list[i++];) {
-                output += visit(node, list.ancestor || null);
+                (function(i) {
+                    node.previous = list[i - 2];
+                    node.next = list[i];
+                    output += visit(node, list.ancestor || null);
+                }(i));
             }
             return output;
         },

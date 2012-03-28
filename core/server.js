@@ -134,10 +134,6 @@ exports.createServer = function(options, cb) {
                 express.listen(options.server_port || 8080);
                 log.info('Server running on '+(options.server_port || 8080)+'!');
 
-                fs.watch('core', function(event, filename) {
-                    log.warn(filename + ' changed!');
-                });
-
                 if(cb) {
                     cb(null, server);
                 }
