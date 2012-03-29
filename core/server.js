@@ -7,9 +7,9 @@ var http = require('http'),
 	templater = require('./lib/templater'),
     permissions = require('./permissions'),
     cache = require('./lib/cache'),
-    flower = require('./lib/flower'),
 	express_lib = require('express'),
 	cradle = require('cradle'),
+    q = require('q'),
     server = module.exports;
 
 exports.createServer = function(options, cb) {
@@ -33,8 +33,6 @@ exports.createServer = function(options, cb) {
 
     cache.couch = couch;
 
-    //log.error( __dirname + '/../' + user_static);
-
     express.configure(function(){
         express.use(express_lib.bodyParser());
         express.use(express_lib.cookieParser());
@@ -44,14 +42,11 @@ exports.createServer = function(options, cb) {
         express.use(express_lib['static'](__dirname + '/../' + core_static));
     });
 
-    // This should be defined in a non-testing environment. For debugging we want stack traces
-    //express.error(function(err, req, res) {
-        //log.warn('Server error: '+err);
-        //res.send('what the heck');
-    //});
-
-    // Internal functions can have silly names, right?
-    function prepareForGoTime() {
+    q.call(function() {
+        if(options.hard_reset) {
+            return server.resetDatabase(couch);
+        }
+    }).then(function() {
         // This is the core of URL routing functionality. Set up a handler for static files
         express.get(/.*/, function(req, res) {
             var urlPath = req.url.split('/'),
@@ -139,81 +134,60 @@ exports.createServer = function(options, cb) {
                 }
             });
         });
-    }
-
-    if(options.hard_reset) {
-        server.resetDatabase(couch, function(err) {
-            if(err) {
-                return log.error('Fatal error encounted while trying to reset database: ', err);
-            }
-            prepareForGoTime();
-        });
-    } else {
-        prepareForGoTime();
-    }
+    })
+    .fail(function(err) {
+        log.error('Fatal error encounted while trying to reset database: ', err);
+    });
 };
 
-exports.resetDatabase = function(couch, callback) {
-    // Reset the database on every startup for now
-    couch.exists(function(err, exists) {
-        function recreate() {
-            couch.create(function(err) {
-                if(err) {
-                    log.error('There was a fatal error creating the database! ',err);
-                    return callback(err);
-                }
-                log.info('Recreated database `'+couch.name+'`');
-
-                // Create our homepage object and url object for it. Bulkdocs takes _id
-                utils.bulkDocs(couch, [
-                    {
-                        _id: '_design/master',
-                        views: {
-                            // Not currently needed, but this is the syntax for a view save
-                            'url':{
-                                map: function(doc) {
-                                    if(doc.url) {
-                                        emit(doc.url, doc);
-                                    }
-                                }
+exports.resetDatabase = function(couch) {
+    return q.ncall(couch.exists, couch)
+        .then(function(exists) {
+            if(exists) {
+                log.info('Existing database found, deleting for development');
+                return q.ncall(couch.destroy, couch);
+            }
+        })
+        .then(function() {
+            return q.ncall(couch.create, couch);
+        })
+        .then(function() {
+            return utils.bulkDocs(couch, [
+            {
+                _id: '_design/master',
+                views: {
+                    // Not currently needed, but this is the syntax for a view save
+                    'url':{
+                        map: function(doc) {
+                            if(doc.url) {
+                                emit(doc.url, doc);
                             }
                         }
-                    },
-                    // TEST DATA
+                    }
+                }
+            },
+            // TEST DATA
 
-                    // root is special case. Let couch name other keys for page objects
-                    {_id:'root', template:'index.html', title:'hello', welcome_msg: 'Velokmen!', url: utils.sanitizeUrl('/'),
-                        parents: [], blogs: ['ab2', 'ab3', 'ab1'], ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}}},
-                    {_id:'test.html', template:'test.html', title:'hello', welcome_msg: 'Test says Velokmen!', test_msg: 'Test message!',
-                        parents: [], pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']},
+            // root is special case. Let couch name other keys for page objects
+            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'Velokmen!', url: utils.sanitizeUrl('/'),
+                parents: [], blogs: ['ab2', 'ab3', 'ab1'], ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}}},
+            {_id:'test.html', template:'test.html', title:'hello', welcome_msg: 'Test says Velokmen!', test_msg: 'Test message!',
+                parents: [], pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']},
 
-                    //{_id:'header.html', template:'header.html'},
-                    //{_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
+            //{_id:'header.html', template:'header.html'},
+            //{_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
 
-                    // CRAP DATA
-                    {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost'), body: 'threenis'},
-                    {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
+            // CRAP DATA
+            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost'), body: 'threenis'},
+            {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
 
-                    //{_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogposta')},
-                    //{_id:'ab2', template:'blog.html', title: 'other blog 2 (first)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostb')},
-                    //{_id:'ab3', template:'blog.html', title: 'other blog 3 (midle)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostc')},
+            //{_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogposta')},
+            //{_id:'ab2', template:'blog.html', title: 'other blog 2 (first)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostb')},
+            //{_id:'ab3', template:'blog.html', title: 'other blog 3 (midle)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostc')},
 
-                    // TODO: This should be a core template, overwritable (there currently are no core templates)
-                    {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}
-                ], function(err) {
-                    !err && log.info('Database reset complete. The homepage (index.html) has been automatically added.');
-                    callback(err);
-                });
-            });
-            return true;
-        }
-
-        if(exists) {
-            log.info('Existing database found, deleting for development');
-            couch.destroy(recreate);
-        } else {
-            recreate();
-        }
+            // TODO: This should be a core template, overwritable (there currently are no core templates)
+            {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}
+        ]);
     });
 };
 

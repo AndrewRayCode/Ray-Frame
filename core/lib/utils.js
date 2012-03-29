@@ -2,6 +2,7 @@ var sys    = require('util'),
 	log = require('simple-logger'),
 	path = require('path'),
     fs = require('fs'),
+    q = require('q'),
     utils = module.exports;
 
 // Search backwards from and NOT including s looking for c (regex or string)
@@ -166,12 +167,12 @@ exports.saveDoc = function(couch, id, doc, cb) {
     couch.saveDoc(id, doc, cb);
 };
 
-exports.bulkDocs = function(couch, docs, cb) {
+exports.bulkDocs = function(couch, docs) {
     var d = new Date();
     docs.forEach(function(doc) {
         doc.modified = d;
     });
-    couch.save(docs, cb);
+    return q.ncall(couch.save, couch, docs);
 };
 
 exports.authSession = function(req) {
