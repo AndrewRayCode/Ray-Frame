@@ -111,18 +111,16 @@ exports.getList = function(viewName, viewData, parentKey, cb) {
         queryParams.include_docs = true;
     }
 
-    this.couch.view('master/' + viewName, queryParams, function(err, result) {
-        if(err) {
-            return cb(new Error('Error querying couch view `' + viewName + ':`' + err.error + ', ' + err.reason));
-        } else if(!result.rows.length) {
-            return cb(null, []);
-        }
+    this.db.view('master/' + viewName, queryParams).then(function(result) {
+        var docs = [], x;
 
-        var docs = [];
+        if(!result.rows.length) {
+            return cb(null, docs);
+        }
 
         // Docs will come back with the 'doc' field from how the view is structured
         if(userSort) {
-            for(var x = 0, row; row = result.rows[x++];) {
+            for(x = 0, row; row = result.rows[x++];) {
                 // TODO: We should get it here, and delete the parent key from known ids
                 if(row.doc._id != parentKey) {
                     docs.push(row.doc);
@@ -130,24 +128,25 @@ exports.getList = function(viewName, viewData, parentKey, cb) {
             }
         // This is a regular view
         } else {
-            for(var x = 0, row; row = result.rows[x++];) {
+            for(x = 0, row; row = result.rows[x++];) {
                 docs.push(row.value);
             }
         }
         cb(null, docs);
+    }).fail(function() {
+        cb(new Error('Error querying couch view `' + viewName + ':`' + err.error + ', ' + err.reason));
     });
 };
 
 cache.getDocsByKey = function(keys, cb) {
-    this.couch.get(keys, function(err, result) {
-        if(err) {
-            return cb(err);
-        }
+    this.db.get(keys).then(function(result) {
         var docs = [];
         for(var x = 0, doc; doc = result.rows[x++];) {
             docs.push(doc.doc);
         }
         cb(null, docs);
+    }).fail(function(err) {
+        cb(err);
     });
 };
 

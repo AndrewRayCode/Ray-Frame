@@ -4,10 +4,12 @@ var templater = module.exports,
 	fs = require('fs'),
 	path = require('path'),
     transients = require('../transients'),
+    cache = require('./cache'),
     utils = require('./utils'),
     uglify = require('uglify-js'),
     lexer = require('./lexer'),
     parser = require('./parser'),
+    q = require('q'),
     compiler = require('./compiler'),
     adminCompiler = require('./admin_compiler'),
     themesDirectory = '../../user/themes/',
@@ -17,6 +19,35 @@ log.level = 'info';
 
 // Function code available on front end and back end
 exports.transientFunctions = '';
+
+// Serve a template from cache or get new version
+exports.render = function(template, user, context, cb) {
+    var data = {
+        blocks: {
+            extender: {}
+        }
+    };
+
+    data[context._id] = {
+        model: context,
+        locals: {a:3}
+    };
+
+    //log.error('serving ',pageData.template + user.role);
+    //console.log(templater.templateCache[pageData.template + user.role].toLocaleString());
+
+    // function('cache', 'templater', 'user', 'pageId', 'data', 'cb');
+    templater.templateCache[template + user.role](cache, templater, user, context._id, data, function(err, txt) {
+        if(err) {
+            cb(null, err.stack.replace(/\n/g, '<br />')
+                + '<hr />'
+                + templater.rawCache[template + user.role].compiled.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                + '<hr />');
+        } else {
+            cb(err, txt);
+        }
+    });
+};
 
 exports.cacheTheme = function(theme, permissions, cb) {
     templater.templateCache = {};
@@ -343,10 +374,7 @@ templater.createViews = function(views, cb) {
 };
 
 exports.createViewIfNull = function(instructions, cb) {
-    templater.couch.get('_design/master', function(err, doc) {
-        if(err) {
-            return cb(new Error('There was a fatal error, master design not found!', err));
-        }
+    templater.couch.get('_design/master').then(function(doc) {
         var viewName = templater.getViewName(instructions);
 
         if(doc.views[viewName]) {
@@ -355,7 +383,7 @@ exports.createViewIfNull = function(instructions, cb) {
         // View does not exist. Make it!
         } else {
             // Sorted via an array of ids on the main document's field. Using include_docs=true
-            // will make this view return the docs when queried 
+            // will make this view return the docs when queried
             if(instructions.sort == 'user') {
                 doc.views[viewName] = {
                     map: utils.formatFunction(function(doc) {
@@ -396,17 +424,19 @@ exports.createViewIfNull = function(instructions, cb) {
                 }
             }
 
-            templater.couch.save('_design/master', doc, function(err) {
-                // If we have a document update conflict on saving a map function then 
-                // most likely another template raced to create it. TODO: This could
-                // be an issue for multiple lists modifying the design document at once!
-                // Maybe save them all to make at end?
-                if(err && err.error == 'conflict') {
-                    return cb(null, viewName);
-                }
-                cb(err, viewName);
+            return templater.couch.save('_design/master', doc).then(function() {
+                cb(null, viewName);
             });
         }
+    }).fail(function(err) {
+        // If we have a document update conflict on saving a map function then 
+        // most likely another template raced to create it. TODO: This could
+        // be an issue for multiple lists modifying the design document at once!
+        // Maybe save them all to make at end?
+        if(err && err.error == 'conflict') {
+            return cb(null, viewName);
+        }
+        cb(err);
     });
 };
 

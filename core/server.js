@@ -1,15 +1,14 @@
-var http = require('http'),
-	sys = require('util'),
-	fs = require('fs'),
+var sys = require('util'),
 	path = require('path'),
 	log = require('simple-logger'),
 	utils = require('./lib/utils'),
 	templater = require('./lib/templater'),
+    db = require('./lib/couch-bone'),
     permissions = require('./permissions'),
     cache = require('./lib/cache'),
 	express_lib = require('express'),
-	cradle = require('cradle'),
     q = require('q'),
+    Model = require('./models/rayframe'),
     server = module.exports;
 
 exports.createServer = function(options, cb) {
@@ -19,21 +18,21 @@ exports.createServer = function(options, cb) {
     var express = express_lib.createServer(),
         // TODO: If couch isn't running we just get a top level exception thrown on first access atempt. Would be nice to
         // tell user to start couch.
-        couch = new(cradle.Connection)().database(options.db_name || 'rayframe'),
         theme = options.theme || 'ray-frame',
         core_static = 'core/static/',
         user_static = 'user/themes/' + theme + '/static/';
 
+    db.connect(options.db_name || 'rayframe');
+
     this.debug = options.debug;
-    this.couch = couch;
     this.express = express;
 
-    templater.couch = couch;
+    templater.couch = db;
     templater.debug = this.debug;
 
-    cache.couch = couch;
+    cache.db = db;
 
-    express.configure(function(){
+    express.configure(function() {
         express.use(express_lib.bodyParser());
         express.use(express_lib.cookieParser());
         express.use(express_lib.session({secret: options.secret}));
@@ -44,55 +43,54 @@ exports.createServer = function(options, cb) {
 
     q.call(function() {
         if(options.hard_reset) {
-            return server.resetDatabase(couch);
+            return server.resetDatabase();
         }
     }).then(function() {
         // This is the core of URL routing functionality. Set up a handler for static files
         express.get(/.*/, function(req, res) {
-            var urlPath = req.url.split('/'),
-                dbPath = utils.sanitizeUrl(req.url);
+            var dbPath = utils.sanitizeUrl(req.url);
             utils.authSession(req);
 
             // This is the handler for any web page. There are URL objects in the database that we look up. So basically every
             // URL on the site has its own URL object which contains the id to the model object, and a parent chain of other
             // URL objects so we can say, build a breadcrumb trail
-            couch.view('master/url', {key: dbPath}, function(err, result) {
-                if(err) {
-                    log.error('Error fetching URL view `'+dbPath+'`: ',err);
+            db.view('master/url', {key: dbPath}).then(function(result) {
+                var found = result.rows.length,
+                    model;
+                if(found === 1) {
+                    model = result.rows[0].value;
+                    templater.render(model.template, req.session.user, model, function(err, parsed) {
+                        if(err) {
+                            log.error('Error serving template for `' + req.url + '` (CouchDB key `' + dbPath + '`): ',err);
+                            res.writeHead(500, {'Content-Type': 'text/html'});
+                            res.end('Internal server errrrrrror');
+                        } else {
+                            res.writeHead(200, {'Content-Type': 'text/html'});
+                            res.end(parsed);
+                        }
+                    });
+                } else if(found > 1) {
+                    log.error('Wtf? `' + dbPath + '`: ',result.rows);
                     res.writeHead(500, {'Content-Type': 'text/html'});
                     res.end('Internal server errrrrrror');
                 } else {
-                    var found = result.rows.length;
-                    if(found == 1) {
-                        server.serveTemplate(req.session.user, result.rows[0].value, function(err, parsed) {
-                            if(err) {
-                                log.error('Error serving template for `'+req.url+'` (CouchDB key `'+dbPath+'`): ',err);
-                                res.writeHead(500, {'Content-Type': 'text/html'});
-                                res.end('Internal server errrrrrror');
-                            } else {
-                                res.writeHead(200, {'Content-Type': 'text/html'});
-                                res.end(parsed);
-                            }
-                        });
-                    } else if(found > 1) {
-                        log.error('Wtf? `' + dbPath + '`: ',result.rows);
-                        res.writeHead(500, {'Content-Type': 'text/html'});
-                        res.end('Internal server errrrrrror');
-                    } else {
-                        log.warn('Non-existant page was requested (404): `'+dbPath+'`');
-                        res.writeHead(404, {'Content-Type': 'text/html'});
+                    log.warn('Non-existant page was requested (404): `'+dbPath+'`');
+                    res.writeHead(404, {'Content-Type': 'text/html'});
 
-                        // Temporary: log all the compiled templates in the system
-                        for(var template in templater.rawCache) {
-                            if(template.indexOf('admin') > -1) {
-                                res.write('<br /><br /><b>' + template + '</b><hr /><code>'
-                                    + templater.rawCache[template].compiled.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[^t];/g, '$&<br />')
-                                + '</code>');
-                            }
+                    // Temporary: log all the compiled templates in the system
+                    for(var template in templater.rawCache) {
+                        if(template.indexOf('admin') > -1) {
+                            res.write('<br /><br /><b>' + template + '</b><hr /><code>'
+                                + templater.rawCache[template].compiled.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[^t];/g, '$&<br />')
+                            + '</code>');
                         }
-                        res.end('Todo: This should be some standardized 404 page');
                     }
+                    res.end('Todo: This should be some standardized 404 page');
                 }
+            }).fail(function(err) {
+                log.error('Error fetching URL view `' + dbPath + '`: ',err);
+                res.writeHead(500, {'Content-Type': 'text/html'});
+                res.end('Internal server errrrrrror');
             });
         });
 
@@ -140,20 +138,27 @@ exports.createServer = function(options, cb) {
     });
 };
 
-exports.resetDatabase = function(couch) {
-    return q.ncall(couch.exists, couch)
+exports.resetDatabase = function() {
+    return db.exists()
         .then(function(exists) {
             if(exists) {
                 log.info('Existing database found, deleting for development');
-                return q.ncall(couch.destroy, couch);
+                return db.destroy();
             }
         })
         .then(function() {
-            return q.ncall(couch.create, couch);
+            return db.create();
         })
         .then(function() {
-            return utils.bulkDocs(couch, [
-            {
+            var root = new Model.Page({
+                _id:'root',
+                template:'index.html', title:'home', welcome_msg: 'Velokmen!', url: '~', parents: [],
+                ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}},
+                blogs: new Frayme.PageReferenceList({
+                    ids: ['ab2', 'ab3', 'ab1']
+                })
+            });
+            return db.save([{
                 _id: '_design/master',
                 views: {
                     // Not currently needed, but this is the syntax for a view save
@@ -167,26 +172,43 @@ exports.resetDatabase = function(couch) {
                 }
             },
             // TEST DATA
+            root,
 
             // root is special case. Let couch name other keys for page objects
-            {_id:'root', template:'index.html', title:'hello', welcome_msg: 'Velokmen!', url: utils.sanitizeUrl('/'),
-                parents: [], blogs: ['ab2', 'ab3', 'ab1'], ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}}},
-            {_id:'test.html', template:'test.html', title:'hello', welcome_msg: 'Test says Velokmen!', test_msg: 'Test message!',
-                parents: [], pages: ['moo', 'abcdeft'], blogs: ['ab2', 'ab3', 'ab1']},
+            new Model.Page({
+                _id:'test.html',
+                template:'test.html',
+                title:'hello',
+                welcome_msg: 'Test says Velokmen!',
+                test_msg: 'Test message!',
+                parents: [],
+                pages: new Frayme.PageReferenceList({
+                    ids: ['moo', 'abcdeft']
+                }),
+                blogs: new Frayme.PageReferenceList({
+                    ids: ['ab2', 'ab3', 'ab1']
+                })
+            }),
 
             //{_id:'header.html', template:'header.html'},
             //{_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
 
             // CRAP DATA
-            {_id:'abcdeft', template:'blog.html', title: 'blog post title!', parent_id: 'root', url: utils.sanitizeUrl('/blogpost'), body: 'threenis'},
-            {_id:'moo', template:'blog.html', title: 'I should be the first in the array', parent_id: 'root', url: utils.sanitizeUrl('/blogpost2')},
+            new Model.Page({
+                _id:'abcdeft', template:'blog.html', title: 'blog post title!', parent: 'root', body: 'threenis'
+            }),
+            new Model.Page({
+                _id:'moo', template:'blog.html', title: 'I should be the first in the array', parent: root
+            }),
 
             //{_id:'ab1', template:'blog.html', title: 'other blog 1 (last)', parent_id: 'root', url: utils.sanitizeUrl('/blogposta')},
             //{_id:'ab2', template:'blog.html', title: 'other blog 2 (first)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostb')},
             //{_id:'ab3', template:'blog.html', title: 'other blog 3 (midle)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostc')},
 
             // TODO: This should be a core template, overwritable (there currently are no core templates)
-            {_id:'login', template:'login.html', title: 'Log in', url: utils.sanitizeUrl('/login')}
+            new Model.Page({
+                _id:'login', template:'login.html', title: 'Log in'
+            })
         ]);
     });
 };
@@ -231,35 +253,6 @@ exports.setUpAccess = function(express) {
                 'Location': '/login'
             });
             response.end();
-        }
-    });
-};
-
-// Serve a template from cache or get new version
-exports.serveTemplate = function(user, pageData, cb) {
-    var data = {
-        blocks: {
-            extender: {}
-        }
-    };
-
-    data[pageData._id] = {
-        model: pageData,
-        locals: {a:3}
-    };
-
-    //log.error('serving ',pageData.template + user.role);
-    //console.log(templater.templateCache[pageData.template + user.role].toLocaleString());
-
-    // function('cache', 'templater', 'user', 'pageId', 'data', 'cb');
-    templater.templateCache[pageData.template + user.role](cache, templater, user, pageData._id, data, function(err, txt) {
-        if(err) {
-            cb(null, err.stack.replace(/\n/g, '<br />')
-                + '<hr />'
-                + templater.rawCache[pageData.template + user.role].compiled.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                + '<hr />');
-        } else {
-            cb(err, txt);
         }
     });
 };

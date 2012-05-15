@@ -161,20 +161,6 @@ exports.addChild = function(couch, useForName, par, field, child, parUrl, cb) {
 	});
 };
 
-exports.saveDoc = function(couch, id, doc, cb) {
-    // TODO: Could do versioning of fields here
-    doc.modified = new Date();
-    couch.saveDoc(id, doc, cb);
-};
-
-exports.bulkDocs = function(couch, docs) {
-    var d = new Date();
-    docs.forEach(function(doc) {
-        doc.modified = d;
-    });
-    return q.ncall(couch.save, couch, docs);
-};
-
 exports.authSession = function(req) {
     if(!req.session.user) {
         req.session.user = {

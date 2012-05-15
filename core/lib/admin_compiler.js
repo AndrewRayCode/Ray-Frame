@@ -28,12 +28,12 @@ adminCompiler.makeCompiler = function() {
             if(prev && prev.arity === 'template') {
             }
             if(node.plipValues && ('list' in node.plipValues)) {
-                return base.addQuotedString('<frayme list>') 
-                    + _(node) 
+                return base.addQuotedString('<frayme list>')
+                    + _(node)
                     + base.addQuotedString('</frayme>');
             } else if(node.state === 'plip') {
-                return base.addQuotedString('<frayme>') 
-                    + _(node) 
+                return base.addQuotedString('<frayme>')
+                    + _(node)
                     + base.addQuotedString('</frayme>');
             }
         }
