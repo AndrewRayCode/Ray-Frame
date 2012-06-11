@@ -113,21 +113,14 @@ exports.cacheTemplate = function(filepath, options, cb) {
 
     fs.readFile(filepath, function(err, contents) {
         contents = contents.toString();
-        templater.processTemplateString(baseName, contents, options, function(err, data) {
-            if(err && !hasErrored) {
-                hasErrored = true;
-                return cb(new Error('Error processing `' + filepath + '`: ' + err.message));
-            } else if(hasErrored) {
-                return;
-            }
+        var processed = templater.processTemplateString(baseName, contents, options);
 
-            // Save the funciton string in our cache
-            templater.templateCache[cachedName] = templater.mangleToFunction(data.compiled, filepath);
+        // Save the funciton string in our cache
+        templater.templateCache[cachedName] = templater.mangleToFunction(processed.compiled, filepath);
 
-            // Also save the raw data in case we need to do anything else tricky with this template, like
-            // use it as a wrapper
-            cb(null, (templater.rawCache[cachedName] = data));
-        });
+        // Also save the raw data in case we need to do anything else tricky with this template, like
+        // use it as a wrapper
+        cb(null, (templater.rawCache[cachedName] = processed));
     });
 };
 
@@ -153,17 +146,13 @@ exports.mangleToFunction = function(inputFunction, filepath) {
 
 // Take raw template string from the filesystem and feed it to the parser. Store the parser's output in a meaningful way
 // so that the data can be used in other areas
-exports.processTemplateString = function(fileName, template, options, cb) {
+exports.processTemplateString = function(fileName, template, options) {
     var tokens = lexer.tokenize(template),
-        treeData = parser.parse(tokens),
-        //output = compiler.makeCompiler().compile(treeData, {
-        output = adminCompiler.makeCompiler().compile(treeData, {
-            role: options.permission,
-            fileName: fileName
-        });
+        treeData = parser.parse(tokens);
 
-    templater.createViews(output.views, function(err) {
-        cb(err, output);
+    return  adminCompiler.makeCompiler().compile(treeData, {
+        role: options.permission,
+        fileName: fileName
     });
 };
 

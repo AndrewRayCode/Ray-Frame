@@ -8,8 +8,9 @@ var sys = require('util'),
     cache = require('./lib/cache'),
 	express_lib = require('express'),
     q = require('q'),
-    Model = require('./models/rayframe'),
-    server = module.exports;
+    Frayme = require('./models/rayframe'),
+    server = module.exports,
+    viewsToCreate = [];
 
 exports.createServer = function(options, cb) {
     log.level = 'info';
@@ -41,10 +42,38 @@ exports.createServer = function(options, cb) {
         express.use(express_lib['static'](__dirname + '/../' + core_static));
     });
 
+    // Listen for all references, which we turn into couch views
+    Frayme.on('newModel:Reference', function(model) {
+        viewsToCreate.push(model);
+    });
+
     q.call(function() {
         if(options.hard_reset) {
             return server.resetDatabase();
         }
+    // Save all view references if they don't exist
+    }).then(function() {
+        return db.get('_design/master').then(function(doc) {
+            viewsToCreate.forEach(function(model) {
+                var name = model.serialize();
+                if(!doc.views[name]) {
+                    doc.views[name] = {
+                        map: 'function(doc) {' +
+                            'if(doc.template) {' +
+                                'var views = "' + model.references().join('","') + '";' +
+                                'for(var x=0; x<views.length; x++) {' +
+                                    'if(doc.template === views[x] + \'.html\') {' +
+                                        'emit(doc.parent_id, doc);' +
+                                        'break;' +
+                                    '}' +
+                                '}' +
+                            '}' +
+                        '}'
+                    };
+                }
+            });
+            return db.save('_design/master', doc);
+        });
     }).then(function() {
         // This is the core of URL routing functionality. Set up a handler for static files
         express.get(/.*/, function(req, res) {
@@ -125,7 +154,7 @@ exports.createServer = function(options, cb) {
 
                 // Here we go!
                 express.listen(options.server_port || 8080);
-                log.info('Server running on '+(options.server_port || 8080)+'!');
+                log.info('Server running on ' + (options.server_port || 8080) + '!');
 
                 if(cb) {
                     cb(null, server);
@@ -150,13 +179,11 @@ exports.resetDatabase = function() {
             return db.create();
         })
         .then(function() {
-            var root = new Model.Page({
+            var root = new Frayme.Page({
                 _id:'root',
                 template:'index.html', title:'home', welcome_msg: 'Velokmen!', url: '~', parents: [],
                 ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}},
-                blogs: new Frayme.PageReferenceList({
-                    ids: ['ab2', 'ab3', 'ab1']
-                })
+                pages: new Frayme.Reference(Frayme.Page)
             });
             return db.save([{
                 _id: '_design/master',
@@ -175,29 +202,29 @@ exports.resetDatabase = function() {
             root,
 
             // root is special case. Let couch name other keys for page objects
-            new Model.Page({
+            new Frayme.Page({
                 _id:'test.html',
                 template:'test.html',
                 title:'hello',
                 welcome_msg: 'Test says Velokmen!',
                 test_msg: 'Test message!',
                 parents: [],
-                pages: new Frayme.PageReferenceList({
-                    ids: ['moo', 'abcdeft']
-                }),
-                blogs: new Frayme.PageReferenceList({
-                    ids: ['ab2', 'ab3', 'ab1']
-                })
+                pages: {
+                    ids: ['abcdeft', 'moo']
+                },
+                blogs: {
+                    ids: ['abcdeft', 'moo']
+                }
             }),
 
             //{_id:'header.html', template:'header.html'},
             //{_id:'global.html', template:'global.html', info: 'stuff'}, // another by convention
 
             // CRAP DATA
-            new Model.Page({
-                _id:'abcdeft', template:'blog.html', title: 'blog post title!', parent: 'root', body: 'threenis'
+            new Frayme.Page({
+                _id:'abcdeft', template:'blog.html', title: 'blog post title!', parent: root, body: 'threenis'
             }),
-            new Model.Page({
+            new Frayme.Page({
                 _id:'moo', template:'blog.html', title: 'I should be the first in the array', parent: root
             }),
 
@@ -206,7 +233,7 @@ exports.resetDatabase = function() {
             //{_id:'ab3', template:'blog.html', title: 'other blog 3 (midle)', parent_id: 'root', url: utils.sanitizeUrl('/blogpostc')},
 
             // TODO: This should be a core template, overwritable (there currently are no core templates)
-            new Model.Page({
+            new Frayme.Page({
                 _id:'login', template:'login.html', title: 'Log in'
             })
         ]);

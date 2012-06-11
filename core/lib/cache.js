@@ -2,7 +2,7 @@ var cache = module.exports,
     log = require('simple-logger');
 
 cache.fillIn = function(knowns, unknowns, pageId, cb) {
-    //log.error('knowns ' , knowns ,' and ',unknowns);
+    log.warn('knowns ' , knowns ,' and ',unknowns);
     var keys = [],
         lists = {},
         unknown;

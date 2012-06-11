@@ -11,7 +11,6 @@ function makeCompiler() {
         includes = '',
         identifier = 'str',
         itemsToCache = {},
-        viewsToCreate = [],
         iterator = 0,
         visiting = {},
         loopVars = [],
@@ -162,8 +161,8 @@ function makeCompiler() {
             if(isList && blockName == 'element') {
                 blocks += 'data.blocks.element = '
                     + (isMasterList ? 'data.blocks.extender.element || data.blocks.element || '
-                            : '') 
-                    + 'function(docs, index, cb) {'
+                            : '')
+                    + 'function(docs, index, cb) {console.log("docs:",docs,index);'
                     + 'var ' + identifier + ' = "",'
                     + '    context = data[docs[index]];'
                     + visitors.beforeBlock(node)
@@ -172,7 +171,7 @@ function makeCompiler() {
                     + 'cb(null, ' + identifier + ');'
                     + '};';
             } else {
-                blocks += 'data.blocks' + 
+                blocks += 'data.blocks' +
                     (hasExtends ? '.extender["' + blockName + '"] = data.blocks.extender["' + blockName + '"] || '
                     : '["' + blockName + '"] = ')
                     + 'function(cb) {'
@@ -207,7 +206,7 @@ function makeCompiler() {
                 + 'data.included = false;';
             return '';
         },
-        'extends': function(node) {
+        'globalextends': function(node) {
             var id = node.first.value;
             itemsToCache[id] = false;
 
@@ -220,7 +219,7 @@ function makeCompiler() {
 
             return '';
         },
-        'localextends': function(node) {
+        'extends': function(node) {
             var id = node.first.value;
             itemsToCache[id] = false;
 
@@ -330,8 +329,6 @@ function makeCompiler() {
                 ref;
 
             if(node.plipValues && ('list' in node.plipValues)) {
-                viewsToCreate.push(node);
-
                 var viewName = getViewName(node);
 
                 itemsToCache[viewName] = {
@@ -364,7 +361,7 @@ function makeCompiler() {
         },
         'list': function(node) {
             if(!isMasterList) {
-                visitors.localextends({
+                visitors.extends({
                     first: {
                         value: 'master-list.html'
                     }
@@ -423,10 +420,6 @@ function makeCompiler() {
         return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     };
 
-    var getViewName = function(node) {
-        return 'type=' + (node.plipValues.type || 'all') + (node.plipValues.sort ? '-' + node.plipValues.sort + '-' + node.plipName : '');
-    };
-
     var getLoop = function() {
         return loopVars[loopVars.length - 1];
     };
@@ -444,12 +437,12 @@ function makeCompiler() {
 
         if(isMasterList) {
             list = // Total is all the list elements, plus start and end blocks
-                'var docs = data[pageId].model[data.listField],'
+                'var docs = data[pageId].model[data.listField].ids,'
                 + '    total = docs.length + 2,'
                 + '    processed = x = 0,'
                 + '    finished = [],'
                 + '    start = end = "",'
-                + '    page;'
+                + '    page;console.log(docs, data[pageId], data.listField);'
                 + 'var exit = function(index, str) {'
                     + 'str && (finished[index] = str);'
                     + 'if(++processed == total) {'
@@ -488,7 +481,7 @@ function makeCompiler() {
                 + includes
                 + contentBeforeOutdent
                 // Render this page if we aren't passing control to another page
-                + (list || (renderFromThisContext ? 
+                + (list || (renderFromThisContext ?
                         'if(!data.included) {'
                         + 'cb(null, ' + identifier + ');'
                         + '} else {'
@@ -503,7 +496,6 @@ function makeCompiler() {
 
         return {
             compiled: compiled,
-            views: viewsToCreate
         };
     };
 
@@ -514,7 +506,6 @@ function makeCompiler() {
         addQuotedString: addQuotedString,
         addString: addString,
         escapeChars: escapeChars,
-        getViewName: getViewName,
         getLoop: getLoop,
         identifier: identifier,
         blocks: blocks
