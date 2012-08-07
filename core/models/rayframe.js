@@ -97,7 +97,7 @@ Frayme.addModel('Reference', {
     },
     toFullJSON: function() {
         return {
-            model: this.serialize,
+            serialName: this.serialize(),
             models: this.models
         };
     }

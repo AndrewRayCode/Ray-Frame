@@ -9,8 +9,9 @@ function makeCompiler() {
         blocks = '',
         list = '',
         includes = '',
-        identifier = 'str',
+        beforeCache = '',
         itemsToCache = {},
+        identifier = 'str',
         iterator = 0,
         visiting = {},
         loopVars = [],
@@ -158,11 +159,12 @@ function makeCompiler() {
         },
         'block': function(node) {
             var blockName = node.first.value;
+            // special case for list elements
             if(isList && blockName == 'element') {
                 blocks += 'data.blocks.element = '
                     + (isMasterList ? 'data.blocks.extender.element || data.blocks.element || '
                             : '')
-                    + 'function(docs, index, cb) {console.log("docs:",docs,index);'
+                    + 'function(docs, index, cb) {'
                     + 'var ' + identifier + ' = "",'
                     + '    context = data[docs[index]];'
                     + visitors.beforeBlock(node)
@@ -194,6 +196,18 @@ function makeCompiler() {
         'include': function(node) {
             outdent += '});';
             var id = node.first.value;
+
+            // Get the blocks from the included page
+            // TODO: We need to build the have / find and sys.inspect
+            includes += 'data.included = true;'
+                + 'templater.templateCache["' + id + context.role.name + '"]'
+                + '(cache, templater, user, pageId, data, function(err) {'
+                + 'data.included = false;';
+            return '';
+       },
+        'globalinclude': function(node) {
+            outdent += '});';
+            var id = node.first.value;
             itemsToCache[id] = false;
 
             // Get the blocks from the included page
@@ -205,6 +219,9 @@ function makeCompiler() {
                 + '(cache, templater, user, "' + id + '", data, function(err) {'
                 + 'data.included = false;';
             return '';
+        },
+        'globalinclude': function(node) {
+            // TODO
         },
         'globalextends': function(node) {
             var id = node.first.value;
@@ -245,7 +262,7 @@ function makeCompiler() {
                 loop = 'loop["' + getLoop() + '"]';
 
                 output = loop + ' = {index: 0, even: true, odd: false};';
-                loopUpdate = 
+                loopUpdate =
                     loop + '.index++;'
                     + loop + '.even = !' + loop + '.even;'
                     + loop + '.odd = !' + loop + '.odd;'
@@ -329,13 +346,8 @@ function makeCompiler() {
                 ref;
 
             if(node.plipValues && ('list' in node.plipValues)) {
-                var viewName = getViewName(node);
-
-                itemsToCache[viewName] = {
-                    field: node.plipName,
-                    userSort: node.plipValues.sort == 'user',
-                    list: true
-                };
+                beforeCache += 'itemsToCache[context.model[' + quote(node.plipName) + '].serialName]'
+                    + ' = {field: ' + quote(node.plipName) + ', list: true};';
 
                 output = 'data.listField = "' + node.plipName + '";'
                     + 'templater.templateCache["' + utils.getListName(node.plipValues) + context.role.name + '"]'
@@ -347,7 +359,7 @@ function makeCompiler() {
                 return output;
             }
 
-            output = '(context.locals["' + node.value + '"] || context.model["' + node.value + '"])';
+            output = '(console.log(context,"...")+context.locals["' + node.value + '"] || context.model["' + node.value + '"])';
 
             // If this is a {{ plip }} just add it to the template output
             if(node.state == 'plip') {
@@ -408,8 +420,12 @@ function makeCompiler() {
         return '__' + chr;
     };
 
+    var quote = function(val) {
+        return '"' + val.replace(/\n|\r/g, '\\n') + '"';
+    };
+
     var addQuotedString = function(val) {
-        return addString('"' + val.replace(/\n|\r/g, '\\n') + '"');
+        return addString(quote(val));
     };
 
     var addString = function(val) {
@@ -442,7 +458,7 @@ function makeCompiler() {
                 + '    processed = x = 0,'
                 + '    finished = [],'
                 + '    start = end = "",'
-                + '    page;console.log(docs, data[pageId], data.listField);'
+                + '    page;'
                 + 'var exit = function(index, str) {'
                     + 'str && (finished[index] = str);'
                     + 'if(++processed == total) {'
@@ -469,10 +485,11 @@ function makeCompiler() {
 
         //return new Function('cache', 'templater', 'user', 'pageId', 'data', 'cb', funcStr);
         compiled =
-            'var ' + identifier + ' = "", loop = {};'
+            'var ' + identifier + ' = "", loop = {}, itemsToCache = {},'
+            + 'context = data[pageId];'
+            + beforeCache
             //+ parseData.declarations
-            + 'cache.fillIn(data, ' + sys.inspect(itemsToCache) + ', pageId, function(err) {'
-                + 'var context = data[pageId];'
+            + 'cache.fillIn(data, itemsToCache, pageId, function(err) {'
                 //+ 'var entryId = pageId;'
                 + 'if(err) { return cb(err); }'
                 + ' try {'

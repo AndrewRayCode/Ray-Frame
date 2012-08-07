@@ -106,15 +106,19 @@ exports.createServer = function(options, cb) {
                     log.warn('Non-existant page was requested (404): `'+dbPath+'`');
                     res.writeHead(404, {'Content-Type': 'text/html'});
 
+                    res.write('<html><head><link href="/rainbow.css" rel="stylesheet" type="text/css"></head><body>');
+
                     // Temporary: log all the compiled templates in the system
                     for(var template in templater.rawCache) {
                         if(template.indexOf('admin') > -1) {
-                            res.write('<br /><br /><b>' + template + '</b><hr /><code>'
-                                + templater.rawCache[template].compiled.toLocaleString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[^t];/g, '$&<br />')
-                            + '</code>');
+                            res.write(
+                            '<br /><br /><h2>' + template + '</h2><hr /><pre><code data-language="javascript">'
+                                + templater.rawCache[template].compiled.toLocaleString().replace(/;/g, ';\n')
+                                + '</code></pre>');
                         }
                     }
-                    res.end('Todo: This should be some standardized 404 page');
+                    res.end('Todo: This should be some standardized 404 page' +
+                        '<script src="/rainbow.js"></script></body></html>');
                 }
             }).fail(function(err) {
                 log.error('Error fetching URL view `' + dbPath + '`: ',err);
