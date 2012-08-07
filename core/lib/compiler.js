@@ -199,12 +199,10 @@ function makeCompiler() {
 
             // Get the blocks from the included page
             // TODO: We need to build the have / find and sys.inspect
-            includes += 'data.included = true;'
-                + 'templater.templateCache["' + id + context.role.name + '"]'
-                + '(cache, templater, user, pageId, data, function(err) {'
-                + 'data.included = false;';
+            includes += 'templater.templateCache["' + id + context.role.name + '"]'
+                + '(cache, templater, user, pageId, data, function(err) {';
             return '';
-       },
+        },
         'globalinclude': function(node) {
             outdent += '});';
             var id = node.first.value;
@@ -219,9 +217,6 @@ function makeCompiler() {
                 + '(cache, templater, user, "' + id + '", data, function(err) {'
                 + 'data.included = false;';
             return '';
-        },
-        'globalinclude': function(node) {
-            // TODO
         },
         'globalextends': function(node) {
             var id = node.first.value;
@@ -261,13 +256,13 @@ function makeCompiler() {
                 loopVars.push(nextProbablyUniqueName());
                 loop = 'loop["' + getLoop() + '"]';
 
-                output = loop + ' = {index: 0, even: true, odd: false};';
+                output = loop + ' = {index: 0, even: true, odd: false, last: (' + second + ').length};';
                 loopUpdate =
                     loop + '.index++;'
                     + loop + '.even = !' + loop + '.even;'
                     + loop + '.odd = !' + loop + '.odd;'
                     + loop + '.first = ' + loop + '.index === 1;'
-                    + loop + '.last = ' + loop + '.index === ' + second + '.length;';
+                    + loop + '.last = ' + loop + '.index === ' + loop + '.last;';
             }
 
             // Iterate over a dictionary (first will be [key, value])
@@ -359,7 +354,7 @@ function makeCompiler() {
                 return output;
             }
 
-            output = '(console.log(context,"...")+context.locals["' + node.value + '"] || context.model["' + node.value + '"])';
+            output = '(context.locals["' + node.value + '"] || context.model["' + node.value + '"])';
 
             // If this is a {{ plip }} just add it to the template output
             if(node.state == 'plip') {
