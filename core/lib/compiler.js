@@ -206,16 +206,14 @@ function makeCompiler() {
         'globalinclude': function(node) {
             outdent += '});';
             var id = node.first.value;
-            itemsToCache[id] = false;
+            beforeCache += 'data.uncached[' + quote(id) + '] = {parent: pageId};';
 
             // Get the blocks from the included page
             // TODO: We need to build the have / find and sys.inspect
-            includes += 'data["' + id + '"] = data["' + id + '"] || {};'
-                + 'data["' + id + '"].parent = pageId;'
-                + 'data.included = true;'
+            includes += 'data.included = true;'
                 + 'templater.templateCache["' + id + context.role.name + '"]'
                 + '(cache, templater, user, "' + id + '", data, function(err) {'
-                + 'data.included = false;';
+                + 'delete data.included;';
             return '';
         },
         'globalextends': function(node) {
@@ -233,7 +231,7 @@ function makeCompiler() {
         },
         'extends': function(node) {
             var id = node.first.value;
-            itemsToCache[id] = false;
+            //itemsToCache[id] = false;
 
             // Render the parent with our blocks
             outdent = 'templater.templateCache["' +  id + context.role.name + '"]'

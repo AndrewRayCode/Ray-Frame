@@ -578,6 +578,13 @@ function makeParser() {
         return this;
     });
 
+    stmt('globalinclude', function() {
+        metadata.hasIncludeStatement = true;
+        this.first = expression(0);
+        this.arity = 'statement';
+        return this;
+    });
+
     stmt('block', function() {
         metadata.hasBlocks = true;
         this.first = expression(0);

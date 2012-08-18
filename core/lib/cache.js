@@ -3,9 +3,19 @@ var cache = module.exports,
 
 cache.fillIn = function(knowns, unknowns, pageId, cb) {
     //log.warn('knowns ' , knowns ,' and ',unknowns);
-    var keys = [],
+
+    var keys = [], // the keys to get from the database
         lists = {},
-        unknown;
+        unknown, key, id;
+
+    // Items with data that we have to merge, like parent relationship
+    if(knowns.uncached) {
+        for(id in knowns.uncached) {
+            if(!(id in knowns)) {
+                keys.push(id);
+            }
+        }
+    }
 
     // Delete anything already known
     for(var key in unknowns) {
@@ -46,11 +56,19 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
         if(keys.length) {
             // Get all documents that we know exist by key
             cache.getDocsByKey(keys, function(err, docs) {
+                var uncached;
+                
                 if(err || hasErrored) {
                     hasErrored = true;
                     return cb(err);
                 }
                 for(var x = 0, doc; doc = docs[x++];) {
+                    // Merge anything from uncached
+                    if((uncached = knowns.uncached[doc._id])) {
+                        for(key in uncached) {
+                            doc[key] = uncached[key];
+                        }
+                    }
                     // Modify `knowns` object in place. This is where we add items. Adding locals for convenience. May not be best way
                     knowns[doc._id] = {model: doc, locals: {}};
                 }

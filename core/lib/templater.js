@@ -25,12 +25,13 @@ exports.render = function(template, user, context, cb) {
     var data = {
         blocks: {
             extender: {}
-        }
+        },
+        uncached: {},
     };
 
     data[context._id] = {
         model: context,
-        locals: {a:3}
+        locals: {a:3},
     };
 
     //log.error('serving ',pageData.template + user.role);
@@ -132,7 +133,7 @@ exports.mangleToFunction = function(inputFunction, filepath) {
         log.warn('Error parsing "' + filepath + '"' + err.message);
         outputFunction = 'cb(null, "Template function string could not be parsed, syntax error found by uglify-js. This is bad.'
             + '<br />' + err.stack.replace(/\n/g, '<br />')
-            + '<hr />' 
+            + '<hr />'
             + inputFunction
                 .replace(/</g, '&lt;').replace(/>/g, '&gt;')
                 .replace(/\n|\r/g, '\\n')

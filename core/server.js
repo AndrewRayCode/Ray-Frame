@@ -210,7 +210,7 @@ exports.resetDatabase = function() {
                 _id:'test.html',
                 template:'test.html',
                 title:'hello',
-                welcome_msg: 'Test says Velokmen!',
+                welcome_msg: 'Test.html says Velokmen!',
                 test_msg: 'Test message!',
                 parents: [],
                 pages: {
