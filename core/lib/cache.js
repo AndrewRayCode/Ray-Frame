@@ -18,7 +18,7 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
     }
 
     // Delete anything already known
-    for(var key in unknowns) {
+    for(key in unknowns) {
         unknown = unknowns[key];
 
         if(unknown === false) {
