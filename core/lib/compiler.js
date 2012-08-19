@@ -10,7 +10,6 @@ function makeCompiler() {
         list = '',
         includes = '',
         beforeCache = '',
-        itemsToCache = {},
         identifier = 'str',
         iterator = 0,
         visiting = {},
@@ -193,6 +192,7 @@ function makeCompiler() {
             }
             return '';
         },
+        // Include a file that executes in the current template context
         'include': function(node) {
             outdent += '});';
             var id = node.first.value;
@@ -203,6 +203,8 @@ function makeCompiler() {
                 + '(cache, templater, user, pageId, data, function(err) {';
             return '';
         },
+        // Included file executes in its own context. Note that we get this on
+        // the template as include global 'a.html'
         'globalinclude': function(node) {
             outdent += '});';
             var id = node.first.value;
@@ -216,9 +218,11 @@ function makeCompiler() {
                 + 'delete data.included;';
             return '';
         },
+        // Extended file executes in its own context. Note we get it on the
+        // template as extend global 'a.html'
         'globalextends': function(node) {
             var id = node.first.value;
-            itemsToCache[id] = false;
+            beforeCache += 'data.uncached[' + quote(id) + '] = {child: pageId};';
 
             // Render the parent with our blocks
             outdent = 'templater.templateCache["' +  id + context.role.name + '"]'
@@ -229,9 +233,9 @@ function makeCompiler() {
 
             return '';
         },
+        // Extended file exectues in context of child
         'extends': function(node) {
             var id = node.first.value;
-            //itemsToCache[id] = false;
 
             // Render the parent with our blocks
             outdent = 'templater.templateCache["' +  id + context.role.name + '"]'
@@ -309,8 +313,12 @@ function makeCompiler() {
                 outptut = '';
 
             if(node.first.arity == 'name') {
+                // Look up child template value (see globalextends). If no
+                // child, defaults to current context.
                 if(firstValue == 'child') {
-                    output = 'context.model["' + secondValue + '"]';
+                    output = '(data[pageId].model.child ?'
+                        + 'data[data[pageId].model.child].model["' + secondValue + '"] : '
+                        + 'context.model["' + secondValue + '"])';
                 } else if(firstValue == 'list') {
                     output = 'data.list["' + secondValue  + '"]';
                 } else if(firstValue == 'loop') {

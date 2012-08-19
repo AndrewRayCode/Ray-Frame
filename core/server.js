@@ -185,7 +185,7 @@ exports.resetDatabase = function() {
         .then(function() {
             var root = new Frayme.Page({
                 _id:'root',
-                template:'index.html', title:'home', welcome_msg: 'Velokmen!', url: '~', parents: [],
+                template:'index.html', title:'home', welcome_msg: 'Velkomen from index.html!', url: '~', parents: [],
                 ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}},
                 pages: new Frayme.Reference(Frayme.Page)
             });
@@ -205,7 +205,6 @@ exports.resetDatabase = function() {
             // TEST DATA
             root,
 
-            // root is special case. Let couch name other keys for page objects
             new Frayme.Page({
                 _id:'test.html',
                 template:'test.html',
@@ -218,7 +217,15 @@ exports.resetDatabase = function() {
                 },
                 blogs: {
                     ids: ['abcdeft', 'moo']
-                }
+                },
+            }),
+
+            new Frayme.Page({
+                _id: 'global.html',
+                template: 'global.html',
+                title: 'hello',
+                welcome_msg: 'I am welcome message from global',
+                parents: [],
             }),
 
             //{_id:'header.html', template:'header.html'},

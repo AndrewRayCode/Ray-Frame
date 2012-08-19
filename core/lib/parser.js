@@ -366,6 +366,9 @@ function makeParser() {
     symbol('in');
     symbol('list');
     symbol('extends');
+    symbol('globalextends');
+    symbol('globalinclude');
+    symbol('include');
     symbol('local');
 
     constant('true', true);
@@ -562,8 +565,8 @@ function makeParser() {
 
     stmt('extends', function() {
         metadata.hasExtendsStatement = true;
-        if(token.value == 'local') {
-            this.value = 'localextends';
+        if(token.value == 'global') {
+            this.value = 'globalextends';
             advance();
         }
         this.first = expression(0);
@@ -573,13 +576,10 @@ function makeParser() {
 
     stmt('include', function() {
         metadata.hasIncludeStatement = true;
-        this.first = expression(0);
-        this.arity = 'statement';
-        return this;
-    });
-
-    stmt('globalinclude', function() {
-        metadata.hasIncludeStatement = true;
+        if(token.value == 'global') {
+            this.value = 'globalinclude';
+            advance();
+        }
         this.first = expression(0);
         this.arity = 'statement';
         return this;
