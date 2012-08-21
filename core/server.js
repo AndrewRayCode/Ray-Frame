@@ -185,7 +185,7 @@ exports.resetDatabase = function() {
         .then(function() {
             var root = new Frayme.Page({
                 _id:'root',
-                template:'index.html', title:'home', welcome_msg: 'Velkomen from index.html!', url: '~', parents: [],
+                template:'index.html', title:'home', welcome_msg: 'Velkomen from <i>index.html</i>!', url: '~', parents: [],
                 ponies: {balls: {'ducks': 'in the pond', 'quack': 'my quack'}},
                 pages: new Frayme.Reference(Frayme.Page)
             });

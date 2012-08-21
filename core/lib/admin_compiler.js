@@ -61,7 +61,7 @@ adminCompiler.makeCompiler = function() {
                     + base.addQuotedString('</frayme>');
             // see template walker for adminify
             } else if(adminify && node.state === 'plip') {
-                return base.addString(base.quote('<!-- ') + ' + pageId + ' + base.quote(':' + node.value + ' -->'))
+                return base.addString(base.quote('<!-- plip:') + ' + pageId + ' + base.quote(':' + node.value + ' -->'))
                     + _(node)
                     + base.addQuotedString('<!-- end -->');
             }
