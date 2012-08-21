@@ -276,13 +276,13 @@ function makeCompiler() {
                     + 'context.locals["' + value + '"] = ' + second + '[context.locals["' + key + '"]];'
                     + loopUpdate
                     + visit(node.third)
-                    + '}'; 
+                    + '}';
             } else {
                 // or iterate over an array
                 output += 'for(var ' + i + '=0; context.locals["' + node.first.value + '"] = ' + second + '[' + i + '++];) {'
                     + loopUpdate
                     + visit(node.third)
-                    + '}'; 
+                    + '}';
             }
 
             if(needsLoop) {
@@ -513,7 +513,7 @@ function makeCompiler() {
             + '});';
 
         return {
-            compiled: compiled,
+            compiled: guests.final ? guests.final(compiled) : compiled
         };
     };
 
@@ -521,6 +521,7 @@ function makeCompiler() {
         compile: compile,
         extend: extend,
         nextProbablyUniqueName: nextProbablyUniqueName,
+        quote: quote,
         addQuotedString: addQuotedString,
         addString: addString,
         escapeChars: escapeChars,

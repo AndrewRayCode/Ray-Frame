@@ -1,22 +1,22 @@
 var sys = require('util'),
-	path = require('path'),
+	fs = require('fs'),
 	log = require('simple-logger'),
 	utils = require('./lib/utils'),
 	templater = require('./lib/templater'),
     db = require('./lib/couch-bone'),
     permissions = require('./permissions'),
     cache = require('./lib/cache'),
-	express_lib = require('express'),
+	express = require('express'),
     q = require('q'),
     Frayme = require('./models/rayframe'),
-    server = module.exports,
+    frayme = module.exports,
     viewsToCreate = [];
 
 exports.createServer = function(options, cb) {
     log.level = 'info';
 
     // Set up express and couch and defaults
-    var express = express_lib.createServer(),
+    var server = express(),
         // TODO: If couch isn't running we just get a top level exception thrown on first access atempt. Would be nice to
         // tell user to start couch.
         theme = options.theme || 'ray-frame',
@@ -26,20 +26,20 @@ exports.createServer = function(options, cb) {
     db.connect(options.db_name || 'rayframe');
 
     this.debug = options.debug;
-    this.express = express;
+    this.express = server;
 
     templater.couch = db;
     templater.debug = this.debug;
 
     cache.db = db;
 
-    express.configure(function() {
-        express.use(express_lib.bodyParser());
-        express.use(express_lib.cookieParser());
-        express.use(express_lib.session({secret: options.secret}));
+    server.configure(function() {
+        server.use(express.bodyParser());
+        server.use(express.cookieParser());
+        server.use(express.session({secret: options.secret}));
 
-        express.use(express_lib['static'](__dirname + '/../' + user_static));
-        express.use(express_lib['static'](__dirname + '/../' + core_static));
+        server.use(express['static'](__dirname + '/../' + user_static));
+        server.use(express['static'](__dirname + '/../' + core_static));
     });
 
     // Listen for all references, which we turn into couch views
@@ -47,9 +47,9 @@ exports.createServer = function(options, cb) {
         viewsToCreate.push(model);
     });
 
-    q.call(function() {
+    q.fcall(function() {
         if(options.hard_reset) {
-            return server.resetDatabase();
+            return frayme.resetDatabase();
         }
     // Save all view references if they don't exist
     }).then(function() {
@@ -76,7 +76,7 @@ exports.createServer = function(options, cb) {
         });
     }).then(function() {
         // This is the core of URL routing functionality. Set up a handler for static files
-        express.get(/.*/, function(req, res) {
+        server.get(/.*/, function(req, res) {
             var dbPath = utils.sanitizeUrl(req.url);
             utils.authSession(req);
 
@@ -142,7 +142,7 @@ exports.createServer = function(options, cb) {
 
             // Set up our transient functions (functions that can run server and client side, right now for core live in transient.js);
             var t = './transients.js', x;
-            path.exists(t, function(ya) {
+            fs.exists(t, function(ya) {
                 if(ya) {
                     var transients = require(t);
                     for(var trans in transients) {
@@ -154,10 +154,10 @@ exports.createServer = function(options, cb) {
                 for(var thing in utils) {
                     templater.addNamespacedTransientFunction('utils', thing, utils[thing]);
                 }
-                server.setUpAccess(express);
+                frayme.setUpAccess(server);
 
                 // Here we go!
-                express.listen(options.server_port || 8080);
+                server.listen(options.server_port || 8080);
                 log.info('Server running on ' + (options.server_port || 8080) + '!');
 
                 if(cb) {
@@ -251,9 +251,9 @@ exports.resetDatabase = function() {
     });
 };
 
-exports.createPost = function(express, role, prefix, name, functionCall) {
+exports.createPost = function(server, role, prefix, name, functionCall) {
 
-    express.post('/'+(prefix ? prefix+'/' : '')+name, function(req, res) {
+    server.post('/'+(prefix ? prefix+'/' : '')+name, function(req, res) {
 
         // Have to do this at every entry point
         utils.authSession(req);
@@ -268,14 +268,14 @@ exports.createPost = function(express, role, prefix, name, functionCall) {
 };
 
 // Set up access functions for admin AJAX calls
-exports.setUpAccess = function(express) {
+exports.setUpAccess = function(server) {
     permissions.forEach(function(role) {
         for(var functionName in role.accessors) {
-            server.createPost(express, role.name, role.accessURL || role.name, functionName, role.accessors[functionName]);
+            frayme.createPost(server, role.name, role.accessURL || role.name, functionName, role.accessors[functionName]);
         }
     });
 
-    express.post('/login', function(request, response) {
+    server.post('/login', function(request, response) {
         if(request.body.username == 'bob' && request.body.password == 'saget') {
             request.session.user = {
                 name: 'bob',

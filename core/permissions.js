@@ -10,9 +10,8 @@ var sys    = require('util'),
 // This sets up a chain of security. Note that if a role has access to a function, so does the role above that. It cascades
 module.exports = [{
     name: 'admin',
-    includes: 
-        '<link rel="stylesheet" href="/admin/admin.css" />'
-        + '<script src="/admin/jquery-1.5.min.js"></script><script src="/admin/admin_functions.js"></script>',
+    includes: [ {href: '/admin/admin.css'}, {src: '/admin/jquery-1.5.min.js'},
+        {src: '/admin/admin_functions.js'} ],
     accessURLPrefix: 'access', // Change for one more quip of security
     wrapTemplateFields: true,
     accessors: {
