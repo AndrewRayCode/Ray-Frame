@@ -8,6 +8,7 @@ module.exports = {
 
         for(var fn in this.couch) {
             if(this.couch[fn] instanceof Function) {
+                this['_' + fn] = this.couch[fn];
                 this[fn] = q.nbind(this.couch[fn], this.couch);
             }
         }

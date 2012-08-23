@@ -86,8 +86,8 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
                 var model = knowns[pageId].model;
 
                 // Set the parent's fieldname to an empty array
-                if(!model[listData.field]) {
-                    model = model[listData.field] = [];
+                if(!model[listData.field].ids) {
+                    model = model[listData.field].ids = [];
                 }
 
                 cache.getList(listName, listData, pageId, function(err, rows) {
@@ -122,7 +122,7 @@ cache.fillIn = function(knowns, unknowns, pageId, cb) {
 
 exports.getList = function(viewName, viewData, parentKey, cb) {
     var queryParams = {
-        key: parentKey
+        key: 'root'
     }, userSort = viewData.userSort;
 
     if(userSort) {
@@ -130,7 +130,7 @@ exports.getList = function(viewName, viewData, parentKey, cb) {
     }
 
     this.db.view('master/' + viewName, queryParams).then(function(result) {
-        var docs = [], x;
+        var docs = [], x, row;
 
         if(!result.rows.length) {
             return cb(null, docs);
@@ -146,12 +146,13 @@ exports.getList = function(viewName, viewData, parentKey, cb) {
             }
         // This is a regular view
         } else {
-            for(x = 0, row; row = result.rows[x++];) {
+            for(x = 0; row = result.rows[x++];) {
                 docs.push(row.value);
             }
         }
         cb(null, docs);
-    }).fail(function() {
+    }).fail(function(err) {
+        log.error(err);
         cb(new Error('Error querying couch view `' + viewName + ':`' + err.error + ', ' + err.reason));
     });
 };

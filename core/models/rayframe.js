@@ -133,7 +133,7 @@ Frayme.addModel('Page', {
         return _.extend(json, {
             url: this.url(),
             model: this.serialName,
-            parent: this.parent && this.parent.get ? this.parent.get('_id') : this.parent
+            parent: json.parent && json.parent._id
         });
     }
 });

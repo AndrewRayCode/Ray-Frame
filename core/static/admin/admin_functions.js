@@ -209,7 +209,7 @@ RayFrame.init().$(function() {
             $change.wrapAll('<span></span>');
             $wrapper = $change.eq(0).parent();
         }
-        $wrapper.css('background', '#ddf').attr('contenteditable', 'true');
+        //$wrapper.css('background', '#ddf').attr('contenteditable', 'true');
     };
 
     $(document.body).click(bodyClickHandler);

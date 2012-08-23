@@ -59,13 +59,10 @@ exports.createServer = function(options, cb) {
                 if(!doc.views[name]) {
                     doc.views[name] = {
                         map: 'function(doc) {' +
-                            'if(doc.template) {' +
-                                'var views = "' + model.references().join('","') + '";' +
-                                'for(var x=0; x<views.length; x++) {' +
-                                    'if(doc.template === views[x] + \'.html\') {' +
-                                        'emit(doc.parent_id, doc);' +
-                                        'break;' +
-                                    '}' +
+                            'if(doc.model) {' +
+                                'var models = {"' + model.references().join('": 1,"') + '": 1};' +
+                                'if(doc.model in models) {' +
+                                    'emit(doc.parent, doc);' +
                                 '}' +
                             '}' +
                         '}'

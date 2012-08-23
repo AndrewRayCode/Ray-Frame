@@ -40,6 +40,17 @@ adminCompiler.makeCompiler = function() {
     };
 
     base.extend({
+        'start': function(node, _) {
+            // construct a regex to know if we're inside an html tag and cannot
+            // safely insert html comments as edit markers
+
+            // /<[^>]*?(([^>\s]+)=['"]?)?$/
+            return 'var aReg = /<' // look for opening tag...
+                + '[^>]*?' // anything that doesn't close the tag...
+                + '(([^>\\s]+)' // capture the attribute name if given...
+                + '=[\'"]?)?$/, aMatch, aSplit;' // and up to end of string
+                + _(node);
+        },
         'beforeBlock': function(node, _) {
             var blockName = node.first.value;
             if(base.isList) {
@@ -61,9 +72,38 @@ adminCompiler.makeCompiler = function() {
                     + base.addQuotedString('</frayme>');
             // see template walker for adminify
             } else if(adminify && node.state === 'plip') {
-                return base.addString(base.quote('<!-- plip:') + ' + pageId + ' + base.quote(':' + node.value + ' -->'))
+                // hoo boy, here we go...
+                var str = base.identifier;
+
+                // Check if the rendered output up to this point contains an
+                // unclosed html tag, eg < without >
+                return 'if((aMatch = ' + str + '.match(aReg))) {'
+                    // If it does and we're inside an attribute...
+                    + 'if(aMatch[2]) {'
+                    // capture from the tag start until the end of the output
+                    + 'aSplit = '
+                        + str + '.substring(' + str + '.lastIndexOf("<"));'
+                    // and split the rendered output where the tag starts
+                    + str + ' = '
+                        + str + '.substring(0, ' + str + '.lastIndexOf("<"));'
+                    // then set a marker with which attribute we're on
+                    + base.addString(
+                        base.quote('<!-- attr:') + ' + aMatch[2] + '
+                        + base.quote(':plip:') + ' + pageId + ' + base.quote(':' + node.value + ' -->')
+                    )
+                    // then re-add the rest of the html
+                    + str + '+= aSplit;'
+                    + '}'
+                    // otherwise we're *probably* in the good old visible DOM
+                    + '} else if(!aMatch) {'
+                    // drop an edit start marker
+                    + base.addString(base.quote('<!-- plip:') + ' + pageId + ' + base.quote(':' + node.value + ' -->'))
+                    + '}'
                     + _(node)
-                    + base.addQuotedString('<!-- end -->');
+                    // and drop an end marker if we weren't in an attribute
+                    + 'if(!aMatch) {'
+                    + base.addQuotedString('<!-- end -->')
+                    + '}';
             }
             return _(node);
         },
